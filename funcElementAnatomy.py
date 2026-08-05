@@ -1,32 +1,37 @@
 import ast
+from collections import Counter, defaultdict
 import os
-from collections import defaultdict, Counter
+
 
 class ModuleCodeAnalyzer:
+    """.py 파일 전체를 읽어 요소별 위치 추적 및 라인별 해부(every_line_view),
+
+    위치(Scope) 중심 요약(scope_centric_summary) 및 요소(Element) 중심 요약(element_centric_summary)을
+    제공하는 분석기
     """
-    .py 파일 전체를 읽어 요소별 위치 추적 및 라인별 해부(every_line_view),
-    위치(Scope) 중심 요약(print_summary) 및 요소(Element) 중심 요약(element_centric_summary)을 제공하는 분석기
-    """
+
     def __init__(self, file_path: str):
         self.file_path = os.path.abspath(file_path)
         self.source_code = self._read_file_safe(self.file_path)
-        
+
         self.lines = self.source_code.splitlines() if self.source_code else []
         self.line_elements = defaultdict(lambda: defaultdict(list))
-        
+
         # 1. 위치 중심 요약 데이터 (Scope -> Item -> Lines)
         self.summary_data = defaultdict(lambda: defaultdict(list))
-        
+
         # 2. 요소 중심 요약 데이터 (Category -> Item -> [(Line, Scope)])
         self.element_data = defaultdict(lambda: defaultdict(list))
-        
+
         if self.source_code.strip():
             try:
                 self.tree = ast.parse(self.source_code)
                 self._add_parent_references(self.tree)
                 self._parse_all_nodes()
             except SyntaxError as e:
-                print(f"⚠️ [SyntaxError] 파이썬 문법 에러로 AST 분석에 실패했습니다 (Line {e.lineno}): {e.msg}")
+                print(
+                    f"⚠️ [SyntaxError] 파이썬 문법 에러로 AST 분석에 실패했습니다 (Line {e.lineno}): {e.msg}"
+                )
                 self.tree = None
         else:
             self.tree = None
@@ -46,7 +51,7 @@ class ModuleCodeAnalyzer:
                         return content
             except Exception:
                 continue
-        
+
         try:
             with open(path, "r", encoding="utf-8", errors="ignore") as f:
                 return f.read()
@@ -60,138 +65,326 @@ class ModuleCodeAnalyzer:
             for child in ast.iter_child_nodes(parent):
                 child.parent = parent
 
-    def _get_node_scope(self, node) -> str:
-        """해당 노드가 속한 클래스/함수 위치 경로 추출 (예: MyClass.my_method() 또는 my_func())"""
+    def _get_node_scope(self, node, include_self=False) -> str:
+        """해당 노드가 속한 클래스/함수 위치 경로 추출
+
+        :param include_self: True일 경우 자기 자신 노드가 ClassDef/FunctionDef인 경우 스코프에 포함
+        """
         scopes = []
-        curr = getattr(node, 'parent', None)
-        
+        curr = node if include_self else getattr(node, "parent", None)
+
         while curr:
             if isinstance(curr, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 scopes.append(f"{curr.name}()")
             elif isinstance(curr, ast.ClassDef):
                 scopes.append(curr.name)
-            curr = getattr(curr, 'parent', None)
-            
+            curr = getattr(curr, "parent", None)
+
         if not scopes:
             return "Global"
-            
+
         return ".".join(reversed(scopes))
 
     def get_element_data(self):
         """요소 중심 분석 데이터를 외부 모듈에 제공"""
         return self.element_data
 
-    def _record_element(self, category: str, item_name: str, lineno: int, scope: str):
+    def _record_element(
+        self, category: str, item_name: str, lineno: int, scope: str
+    ):
         """두 가지 요약 데이터 구조에 모두 수집 기록"""
         # Scope 중심 구조
-        self.summary_data[scope][f"{category} '{item_name}'" if category not in ["Functions", "Classes"] else item_name].append(lineno)
+        item_key = (
+            item_name
+            if category in ["Functions", "Classes"]
+            else f"{category} '{item_name}'"
+        )
+        self.summary_data[scope][item_key].append(lineno)
         # Element 중심 구조
         self.element_data[category][item_name].append((lineno, scope))
 
     def _parse_all_nodes(self):
-        """AST 노드를 순회하며 데이터 수집"""
+        """AST 노드를 순회하며 데이터 수집 (클래스/인스턴스 변수 감지 보완)"""
         for node in ast.walk(self.tree):
-            lineno = getattr(node, 'lineno', None)
+            lineno = getattr(node, "lineno", None)
             if lineno is None:
                 continue
 
             scope = self._get_node_scope(node)
 
-            # 1. 클래스 정의
+            # 1. 클래스 정의 (자기 자신을 스코프에 포함시켜 수집)
             if isinstance(node, ast.ClassDef):
-                self.line_elements[lineno]["Classes"].append(f"ClassDef: {node.name}")
-                self._record_element("Classes", f"class {node.name}", lineno, scope)
+                self.line_elements[lineno]["Classes"].append(
+                    f"ClassDef: {node.name}"
+                )
+                self._record_element(
+                    "Classes", f"class {node.name}", lineno, scope
+                )
 
             # 2. 함수 및 메서드 정의
             elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self.line_elements[lineno]["Functions"].append(f"FunctionDef: {node.name}")
-                self._record_element("Functions", f"def {node.name}()", lineno, scope)
+                self.line_elements[lineno]["Functions"].append(
+                    f"FunctionDef: {node.name}"
+                )
+                self._record_element(
+                    "Functions", f"def {node.name}()", lineno, scope
+                )
 
                 # 파라미터
                 args = node.args
-                func_scope = f"{scope}.{node.name}()" if scope != "Global" else f"{node.name}()"
-                
+                func_scope = (
+                    f"{scope}.{node.name}()"
+                    if scope != "Global"
+                    else f"{node.name}()"
+                )
+
                 for arg in args.args + args.kwonlyargs:
-                    arg_line = getattr(arg, 'lineno', lineno)
-                    self.line_elements[arg_line]["Params"].append(f"Param: {arg.arg}")
-                    self._record_element("Parameter", f"{arg.arg}", arg_line, func_scope)
+                    arg_line = getattr(arg, "lineno", lineno)
+                    self.line_elements[arg_line]["Params"].append(
+                        f"Param: {arg.arg}"
+                    )
+                    self._record_element(
+                        "Parameter", f"{arg.arg}", arg_line, func_scope
+                    )
                 if args.vararg:
-                    self.line_elements[lineno]["Params"].append(f"Param: *{args.vararg.arg}")
-                    self._record_element("Parameter", f"*{args.vararg.arg}", lineno, func_scope)
+                    self.line_elements[lineno]["Params"].append(
+                        f"Param: *{args.vararg.arg}"
+                    )
+                    self._record_element(
+                        "Parameter", f"*{args.vararg.arg}", lineno, func_scope
+                    )
                 if args.kwarg:
-                    self.line_elements[lineno]["Params"].append(f"Param: **{args.kwarg.arg}")
-                    self._record_element("Parameter", f"**{args.kwarg.arg}", lineno, func_scope)
+                    self.line_elements[lineno]["Params"].append(
+                        f"Param: **{args.kwarg.arg}"
+                    )
+                    self._record_element(
+                        "Parameter", f"**{args.kwarg.arg}", lineno, func_scope
+                    )
 
-            # 3. 변수 할당
-            elif isinstance(node, ast.Assign):
-                for target in node.targets:
+            # 3. 임포트 (Import / ImportFrom)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    name_str = f"import {alias.name}" + (
+                        f" as {alias.asname}" if alias.asname else ""
+                    )
+                    self.line_elements[lineno]["Imports"].append(name_str)
+                    self._record_element("Imports", name_str, lineno, scope)
+
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                for alias in node.names:
+                    name_str = f"from {module} import {alias.name}" + (
+                        f" as {alias.asname}" if alias.asname else ""
+                    )
+                    self.line_elements[lineno]["Imports"].append(name_str)
+                    self._record_element("Imports", name_str, lineno, scope)
+
+            # 4. 조건문 및 제어문 (If, For, While)
+            elif isinstance(node, ast.If):
+                test_expr = (
+                    ast.unparse(node.test)
+                    if hasattr(ast, "unparse")
+                    else "condition"
+                )
+                self.line_elements[lineno]["ControlFlow"].append(
+                    f"If ({test_expr})"
+                )
+                self._record_element(
+                    "Control Flow", f"if {test_expr}", lineno, scope
+                )
+
+            elif isinstance(node, (ast.For, ast.While)):
+                self.line_elements[lineno]["ControlFlow"].append(
+                    f"Loop ({node.__class__.__name__})"
+                )
+                self._record_element(
+                    "Control Flow",
+                    f"{node.__class__.__name__.lower()} loop",
+                    lineno,
+                    scope,
+                )
+
+            # 5. 변수 할당 (수정: 클래스 변수, 인스턴스 변수 및 타입 힌트 변수 추가 수집)
+            elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                targets = []
+                if isinstance(node, ast.Assign):
+                    targets = node.targets
+                elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+                    targets = [node.target]
+
+                for target in targets:
+                    # A. 일반 변수 및 클래스 변수 (예: x = 10)
                     if isinstance(target, ast.Name):
-                        self.line_elements[lineno]["Vars"].append(f"Var: {target.id}")
-                        self._record_element("Variable", f"{target.id}", lineno, scope)
-            elif isinstance(node, ast.AugAssign):
-                if isinstance(node.target, ast.Name):
-                    self.line_elements[lineno]["Vars"].append(f"Var: {node.target.id}")
-                    self._record_element("Variable", f"{node.target.id}", lineno, scope)
+                        var_name = target.id
+                        # 부모가 ClassDef라면 클래스 변수로 분류
+                        parent_node = getattr(node, "parent", None)
+                        if isinstance(parent_node, ast.ClassDef):
+                            class_scope = self._get_node_scope(
+                                parent_node, include_self=True
+                            )
+                            self.line_elements[lineno]["Vars"].append(
+                                f"ClassVar: {var_name}"
+                            )
+                            self._record_element(
+                                "Class Variable", var_name, lineno, class_scope
+                            )
+                        else:
+                            self.line_elements[lineno]["Vars"].append(
+                                f"Var: {var_name}"
+                            )
+                            self._record_element(
+                                "Variable", var_name, lineno, scope
+                            )
 
-            # 4. 함수 및 메서드 호출
+                    # B. 인스턴스 변수 및 속성 할당 (예: self.target_dir = ...)
+                    elif isinstance(target, ast.Attribute):
+                        attr_expr = (
+                            ast.unparse(target)
+                            if hasattr(ast, "unparse")
+                            else target.attr
+                        )
+                        # self.xxx 패턴인 경우 Instance Variable로 명확히 추적
+                        if (
+                            isinstance(target.value, ast.Name)
+                            and target.value.id == "self"
+                        ):
+                            self.line_elements[lineno]["Vars"].append(
+                                f"InstanceVar: {attr_expr}"
+                            )
+                            self._record_element(
+                                "Instance Variable",
+                                attr_expr,
+                                lineno,
+                                scope,
+                            )
+                        else:
+                            self.line_elements[lineno]["Vars"].append(
+                                f"AttrAssign: {attr_expr}"
+                            )
+                            self._record_element(
+                                "Attribute Assignment",
+                                attr_expr,
+                                lineno,
+                                scope,
+                            )
+
+            # 6. 함수 및 메서드 호출
             elif isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Name):
-                    self.line_elements[lineno]["Calls"].append(f"CallFunc: {node.func.id}()")
-                    self._record_element("Function", f"{node.func.id}()", lineno, scope)
+                    self.line_elements[lineno]["Calls"].append(
+                        f"CallFunc: {node.func.id}()"
+                    )
+                    self._record_element(
+                        "Function", f"{node.func.id}()", lineno, scope
+                    )
                 elif isinstance(node.func, ast.Attribute):
-                    obj_name = ast.unparse(node.func.value)
+                    obj_name = (
+                        ast.unparse(node.func.value)
+                        if hasattr(ast, "unparse")
+                        else "obj"
+                    )
                     method_name = f".{node.func.attr}()"
                     full_method_str = f"[{obj_name}]{method_name}"
 
-                    self.line_elements[lineno]["Methods"].append(f"CallMethod: [{obj_name}]{method_name}")
-                    self._record_element("Called Methods", full_method_str, lineno, scope)
+                    self.line_elements[lineno]["Methods"].append(
+                        f"CallMethod: [{obj_name}]{method_name}"
+                    )
+                    self._record_element(
+                        "Called Methods", full_method_str, lineno, scope
+                    )
 
-            # 5. 리턴 문
+            # 7. 리턴 문
             elif isinstance(node, ast.Return):
-                val = ast.unparse(node.value) if node.value else "None"
+                val = (
+                    (
+                        ast.unparse(node.value)
+                        if hasattr(ast, "unparse")
+                        else "expr"
+                    )
+                    if node.value
+                    else "None"
+                )
                 self.line_elements[lineno]["Returns"].append(f"Return: {val}")
                 self._record_element("Return", f"return {val}", lineno, scope)
 
-            # 6. 예외 처리
+            # 8. 예외 처리
             elif isinstance(node, ast.Raise):
-                exc_str = ast.unparse(node.exc) if node.exc else "Re-raise"
+                exc_str = (
+                    (
+                        ast.unparse(node.exc)
+                        if hasattr(ast, "unparse")
+                        else "expr"
+                    )
+                    if node.exc
+                    else "Re-raise"
+                )
                 self.line_elements[lineno]["Raises"].append(f"Raise: {exc_str}")
-                self._record_element("Exception Raised", f"raise {exc_str}", lineno, scope)
-                
+                self._record_element(
+                    "Exception Raised", f"raise {exc_str}", lineno, scope
+                )
+
             elif isinstance(node, ast.ExceptHandler):
-                exc_type = ast.unparse(node.type) if node.type else "Bare except"
-                self.line_elements[lineno]["Excepts"].append(f"Except: {exc_type}")
-                self._record_element("Exceptions Handled", f"except {exc_type}", lineno, scope)
+                exc_type = (
+                    (
+                        ast.unparse(node.type)
+                        if hasattr(ast, "unparse")
+                        else "expr"
+                    )
+                    if node.type
+                    else "Bare except"
+                )
+                self.line_elements[lineno]["Excepts"].append(
+                    f"Except: {exc_type}"
+                )
+                self._record_element(
+                    "Exceptions Handled", f"except {exc_type}", lineno, scope
+                )
 
     def scope_centric_summary(self):
         """[Scope 중심] 소속 위치(함수/클래스)를 Key로 그룹화하여 사용된 라인 번호 리스트 출력"""
-        print(f"\n================================================================================")
-        print(f" 📊 [Summary Analysis - Scope Centric] File: {self.file_path}")
-        print(f"================================================================================")
-        
+        print(
+            "================================================================================"
+        )
+        print(
+            f" 📊 [Summary Analysis - Scope Centric] File: {self.file_path}"
+        )
+        print(
+            "================================================================================"
+        )
+
         if not self.summary_data:
             print("  분석할 데이터가 없습니다.")
             return
 
-        sorted_scopes = sorted(self.summary_data.keys(), key=lambda s: (s != "Global", s))
+        sorted_scopes = sorted(
+            self.summary_data.keys(), key=lambda s: (s != "Global", s)
+        )
 
         for scope in sorted_scopes:
             item_dict = self.summary_data[scope]
             print(f"\n📌 [{scope} 위치]:")
-            
+
             for item_name, lines in sorted(item_dict.items()):
                 unique_lines = sorted(list(set(lines)))
                 lines_str = ", ".join(map(str, unique_lines))
-                print(f"   • {item_name} (Line {lines_str})")
-                
-        print(f"================================================================================")
+                print(f"    • {item_name} (Line {lines_str})")
+
+        print(
+            "================================================================================"
+        )
 
     def element_centric_summary(self):
         """[요소 중심] 카테고리/항목별로 어느 위치(Scope)에서 몇 번 라인에 사용되었는지 출력"""
-        print(f"\n================================================================================")
-        print(f" 📊 [Summary Analysis - Element Centric] File: {self.file_path}")
-        print(f"================================================================================")
-        
+        print(
+            "================================================================================"
+        )
+        print(
+            f" 📊 [Summary Analysis - Element Centric] File: {self.file_path}"
+        )
+        print(
+            "================================================================================"
+        )
+
         if not self.element_data:
             print("  분석할 데이터가 없습니다.")
             return
@@ -199,37 +392,45 @@ class ModuleCodeAnalyzer:
         for category, item_dict in self.element_data.items():
             print(f"\n📌 {category} ({len(item_dict)}종류):")
             for item_name, line_scope_list in sorted(item_dict.items()):
-                # Scope별로 라인 번호 묶기 {Scope: [Lines]}
                 scope_lines = defaultdict(list)
                 for line, scope in line_scope_list:
                     scope_lines[scope].append(line)
-                
-                # 라인 오름차순 정렬 후 포맷팅
+
                 formatted_parts = []
-                for scope in sorted(scope_lines.keys(), key=lambda s: (s != "Global", s)):
+                for scope in sorted(
+                    scope_lines.keys(), key=lambda s: (s != "Global", s)
+                ):
                     lines = sorted(list(set(scope_lines[scope])))
                     lines_str = ", ".join(map(str, lines))
                     formatted_parts.append(f"Line {lines_str} : {scope} 위치")
-                
+
                 pos_formatted = " | ".join(formatted_parts)
-                print(f"   • {item_name} \n\t({pos_formatted})")
-                
-        print(f"================================================================================")
+                print(f"    • {item_name} \n\t({pos_formatted})")
+
+        print(
+            "================================================================================"
+        )
 
     def every_line_view(self):
         """소스코드 전체를 라인별 원문 + 하나로 묶인 요소를 해부하여 출력"""
-        print(f"\n================================================================================")
+        print(
+            "================================================================================"
+        )
         print(f" 📄 [Every Line View] File: {self.file_path}")
-        print(f"================================================================================")
-        
+        print(
+            "================================================================================"
+        )
+
         if not self.lines:
             print("  (빈 파일이거나 내용을 읽을 수 없습니다.)")
-            print(f"================================================================================")
+            print(
+                "================================================================================"
+            )
             return
 
         for idx, line_content in enumerate(self.lines, start=1):
             elements = self.line_elements[idx]
-            
+
             found_list = []
             for category, items in elements.items():
                 if items:
@@ -240,25 +441,25 @@ class ModuleCodeAnalyzer:
                             formatted_items.append(f"{item} (x{count})")
                         else:
                             formatted_items.append(item)
-                    
+
                     found_list.append(f"[{', '.join(formatted_items)}]")
 
             line_str = f"Line {idx:3d} | {line_content}"
-            
+
             if found_list:
                 info_str = " ".join(found_list)
                 print(f"{line_str:<70} 💡 {info_str}")
             else:
                 print(f"{line_str}")
-        
-        print(f"================================================================================")
+
+        print(
+            "================================================================================"
+        )
 
 
-# ==========================================
-# 🚀 실행부
-# ==========================================
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\components\Edit.py"
-    
+    file_target = r"E:\autoconstruction\main.py"
+    # file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
+
     analyzer = ModuleCodeAnalyzer(file_target)
-    analyzer.scope_centric_summary()
+    analyzer.element_centric_summary()

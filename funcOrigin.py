@@ -73,12 +73,12 @@ class FuncOrigin:
 
                 # (2) Functions / Methods
                 elif category == "Functions":
-                    info = f"Defined locally at Line {first_line} [{first_scope} 위치]"
+                    info = f"Created locally at Line {first_line} [{first_scope} 위치]"
                     self._record_origin("Functions", item_name, info)
 
                 # (3) Parameters
                 elif category == "Parameter":
-                    info = f"Declared at Line {first_line} [{first_scope} 위치]"
+                    info = f"Created at Line {first_line} [{first_scope} 위치]"
                     self._record_origin("Parameters", f"Param '{item_name}'", info)
 
                 # (4) Variables (최초 할당 위치)
@@ -148,6 +148,7 @@ class FuncOrigin:
 # ==========================================
 if __name__ == "__main__":
     file_target = r"E:\autoconstruction\components\Edit.py"
+    file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
     
     # 1. FuncElementAnatomy 분석 진행
     anatomy_analyzer = ModuleCodeAnalyzer(file_target)
