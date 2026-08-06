@@ -1,0 +1,1458 @@
+[
+    [
+        "E:\\autoconstruction\\main.py",
+        {},
+        {
+            "defs": [],
+            "MainWindow": [
+                "__init__()",
+                "on_save_clicked()",
+                "on_save_as_clicked()",
+                "on_list_item_clicked()",
+                "show_list_context_menu()",
+                "keyPressEvent()",
+                "eventFilter()",
+                "setup_list_headers()",
+                "save_state()",
+                "undo()",
+                "redo()",
+                "init_data()",
+                "save_data()",
+                "merge_selected_items()"
+            ],
+            "ToolButton": [
+                "__init__()",
+                "mousePressEvent()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\old\\deprecated.py",
+        {
+            "deprecated": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 13,
+                    "import_type": "Direct-Import",
+                    "imported_as": "deprecated",
+                    "raw_statement": "import old.deprecated"
+                }
+            ],
+            "load_structure_deprecate_1 (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 194,
+                    "context": "deprecated.load_structure_deprecate_1"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "load_structure_deprecate_1()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\old\\ECScore.py",
+        {},
+        {
+            "defs": [
+                "exception_hook()"
+            ],
+            "ComponentTree": [
+                "__init__()",
+                "keyPressEvent()",
+                "delete_item()",
+                "find_children_with_parent()",
+                "dropEvent()",
+                "_find_current_parent()",
+                "_check_inheritance_warning()",
+                "open_menu()",
+                "inherit_dialog()",
+                "update_item_text()",
+                "to_structure()"
+            ],
+            "CompflowUI": [
+                "__init__()",
+                "build_tree()",
+                "mousePressEvent()",
+                "mouseMoveEvent()",
+                "add_component()",
+                "save_structure()",
+                "load_structure()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\old\\formation.py",
+        {},
+        {
+            "defs": [],
+            "Formation": [
+                "__init__()",
+                "markerSingleRow()",
+                "datafy()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\api\\collect.py",
+        {},
+        {
+            "defs": []
+        }
+    ],
+    [
+        "E:\\autoconstruction\\api\\converter.py",
+        {},
+        {
+            "defs": [
+                "convert_page_to_json()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\api\\transformer.py",
+        {},
+        {
+            "defs": [
+                "analyze_node_relationships()",
+                "get_node_traits()",
+                "get_node_raw_data()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\config\\ntype.py",
+        {
+            "ntype": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 16,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "ntype",
+                    "raw_statement": "from config import ntype"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 9,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "ntype",
+                    "raw_statement": "from config import ntype"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Dialogs.py",
+                    "line": 3,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "ntype",
+                    "raw_statement": "from config import ntype"
+                }
+            ],
+            "tools (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 39,
+                    "context": "ntype.tools"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 524,
+                    "context": "ntype.tools"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Dialogs.py",
+                    "line": 129,
+                    "context": "ntype.tools"
+                }
+            ]
+        },
+        {
+            "defs": []
+        }
+    ],
+    [
+        "E:\\autoconstruction\\config\\BlockBuilder.py",
+        {
+            "BlockBuilder": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 8,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "BlockBuilder",
+                    "raw_statement": "from config import BlockBuilder"
+                }
+            ],
+            "blockBranch (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 89,
+                    "context": "BlockBuilder.blockBranch"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "blockBranch()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\temp\\idea.py",
+        {},
+        {
+            "defs": []
+        }
+    ],
+    [
+        "E:\\autoconstruction\\temp\\templocater.py",
+        {
+            "LocaterDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 11,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "LocaterDialog",
+                    "raw_statement": "from temp.templocater import LocaterDialog"
+                }
+            ],
+            "LocaterDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 426,
+                    "context": "LocaterDialog"
+                }
+            ]
+        },
+        {
+            "defs": [],
+            "LocaterDialog": [
+                "__init__()",
+                "initUI()",
+                "data_call()",
+                "get_updated_data()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\temp\\tempactor.py",
+        {
+            "ActorDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 10,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "ActorDialog",
+                    "raw_statement": "from temp.tempactor import ActorDialog"
+                }
+            ],
+            "ActorDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 428,
+                    "context": "ActorDialog"
+                }
+            ]
+        },
+        {
+            "defs": [],
+            "ActorDialog": [
+                "__init__()",
+                "initUI()",
+                "data_call()",
+                "get_updated_data()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\utils\\exception.py",
+        {
+            "exception_hook": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 14,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "exception_hook",
+                    "raw_statement": "from utils.exception import exception_hook"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 15,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "exception_hook",
+                    "raw_statement": "from utils.exception import exception_hook"
+                }
+            ],
+            "exception_hook (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 423,
+                    "context": "exception_hook"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 17,
+                    "context": "exception_hook"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "exception_hook()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\utils\\support_func.py",
+        {
+            "find_existing_connection": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 2,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "find_existing_connection",
+                    "raw_statement": "from utils.support_func import find_existing_connection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Connections.py",
+                    "line": 4,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "find_existing_connection",
+                    "raw_statement": "from utils.support_func import find_existing_connection"
+                }
+            ],
+            "find_existing_connection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 68,
+                    "context": "find_existing_connection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Connections.py",
+                    "line": 151,
+                    "context": "find_existing_connection"
+                }
+            ],
+            "get_new_node_data": [
+                {
+                    "file": "E:\\autoconstruction\\config\\BlockBuilder.py",
+                    "line": 2,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "get_new_node_data",
+                    "raw_statement": "from utils.support_func import get_new_node_data"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 4,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "get_new_node_data",
+                    "raw_statement": "from utils.support_func import get_new_node_data"
+                }
+            ],
+            "get_new_node_data (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\config\\BlockBuilder.py",
+                    "line": 56,
+                    "context": "get_new_node_data"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 66,
+                    "context": "get_new_node_data"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 38,
+                    "context": "get_new_node_data"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "find_existing_connection()",
+                "get_new_node_data()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\ui\\Visual.py",
+        {
+            "ECScoreView": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 11,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "ECScoreView",
+                    "raw_statement": "from ui.Visual import ECScoreView"
+                }
+            ],
+            "ECScoreView (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 55,
+                    "context": "ECScoreView"
+                }
+            ]
+        },
+        {
+            "defs": [],
+            "ECScoreView": [
+                "__init__()",
+                "externalFunctionGet()",
+                "wheelEvent()",
+                "dropEvent()",
+                "mouseMoveEvent()",
+                "mousePressEvent()",
+                "mouseReleaseEvent()",
+                "keyPressEvent()",
+                "keyReleaseEvent()",
+                "focusOutEvent()",
+                "contextMenuEvent()",
+                "resizeEvent()",
+                "dragEnterEvent()",
+                "dragMoveEvent()",
+                "add_new_box()",
+                "add_new_node()",
+                "update_movement()",
+                "load_structure()",
+                "_remove_node_data_by_id()",
+                "update_merged_node_relationships()",
+                "set_file_display()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\Connections.py",
+        {
+            "NodeConnection": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 3,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.Connections import NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 5,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.Connections import NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 6,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.Connections import NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 10,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.Connections import NodeConnection"
+                }
+            ],
+            "NodeConnection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 70,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 106,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 51,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 93,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 100,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 121,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 201,
+                    "context": "NodeConnection"
+                }
+            ],
+            "start_connection": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "start_connection",
+                    "raw_statement": "from components.Connections import start_connection"
+                }
+            ],
+            "complete_connection": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "complete_connection",
+                    "raw_statement": "from components.Connections import complete_connection"
+                }
+            ],
+            "cancel_connection": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "cancel_connection",
+                    "raw_statement": "from components.Connections import cancel_connection"
+                }
+            ],
+            "remove_connection": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "remove_connection",
+                    "raw_statement": "from components.Connections import remove_connection"
+                }
+            ],
+            "start_connection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 87,
+                    "context": "start_connection"
+                }
+            ],
+            "remove_connection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 88,
+                    "context": "remove_connection"
+                }
+            ],
+            "cancel_connection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 89,
+                    "context": "cancel_connection"
+                }
+            ],
+            "complete_connection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 90,
+                    "context": "complete_connection"
+                }
+            ],
+            "ConnectionDot": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 6,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "ConnectionDot",
+                    "raw_statement": "from components.Connections import ConnectionDot"
+                }
+            ],
+            "ConnectionDot (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 378,
+                    "context": "ConnectionDot"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 381,
+                    "context": "ConnectionDot"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "remove_connection()",
+                "start_connection()",
+                "complete_connection()",
+                "cancel_connection()"
+            ],
+            "ConnectionDot": [
+                "__init__()",
+                "boundingRect()",
+                "get_pt()",
+                "paint()"
+            ],
+            "NodeConnection": [
+                "__init__()",
+                "update_path()",
+                "paint()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\Edit.py",
+        {
+            "Edit": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 10,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "Edit",
+                    "raw_statement": "from components import Edit"
+                }
+            ],
+            "mass_edit_selection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 81,
+                    "context": "Edit.mass_edit_selection"
+                }
+            ],
+            "bulk_add_nodes (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 82,
+                    "context": "Edit.bulk_add_nodes"
+                }
+            ],
+            "merge_selected_nodes (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 83,
+                    "context": "Edit.merge_selected_nodes"
+                }
+            ],
+            "save_selection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 84,
+                    "context": "Edit.save_selection"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "mass_edit_selection()",
+                "bulk_add_nodes()",
+                "merge_selected_nodes()",
+                "save_selection()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\NodeBlock.py",
+        {
+            "VisualNode": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 4,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 8,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Connections.py",
+                    "line": 24,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 6,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataSaver.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 1,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 3,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "VisualNode",
+                    "raw_statement": "from components.NodeBlock import VisualNode"
+                }
+            ],
+            "AreaBox": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 4,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "AreaBox",
+                    "raw_statement": "from components.NodeBlock import AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 8,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "AreaBox",
+                    "raw_statement": "from components.NodeBlock import AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 9,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "AreaBox",
+                    "raw_statement": "from components.NodeBlock import AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 3,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "AreaBox",
+                    "raw_statement": "from components.NodeBlock import AreaBox"
+                }
+            ],
+            "FunctionalBox": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 4,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "FunctionalBox",
+                    "raw_statement": "from components.NodeBlock import FunctionalBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 8,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "FunctionalBox",
+                    "raw_statement": "from components.NodeBlock import FunctionalBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 3,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "FunctionalBox",
+                    "raw_statement": "from components.NodeBlock import FunctionalBox"
+                }
+            ],
+            "AreaBox (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\old\\deprecated.py",
+                    "line": 97,
+                    "context": "AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 142,
+                    "context": "AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 107,
+                    "context": "AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataSaver.py",
+                    "line": 81,
+                    "context": "NodeBlock.AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 42,
+                    "context": "AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 107,
+                    "context": "AreaBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 118,
+                    "context": "AreaBox"
+                }
+            ],
+            "VisualNode (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 150,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Connections.py",
+                    "line": 27,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 11,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataLoader.py",
+                    "line": 110,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\components\\dataSaver.py",
+                    "line": 28,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 11,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 12,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 29,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 50,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 15,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 48,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 76,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 75,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 8,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 203,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 10,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 17,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 42,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 105,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 136,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 118,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 121,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 206,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 26,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 26,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 29,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 150,
+                    "context": "VisualNode"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+                    "line": 175,
+                    "context": "VisualNode"
+                }
+            ],
+            "FunctionalBox (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 144,
+                    "context": "FunctionalBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 42,
+                    "context": "FunctionalBox"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 118,
+                    "context": "FunctionalBox"
+                }
+            ],
+            "NodeBlock": [
+                {
+                    "file": "E:\\autoconstruction\\components\\dataSaver.py",
+                    "line": 10,
+                    "import_type": "Direct-Import",
+                    "imported_as": "NodeBlock",
+                    "raw_statement": "import components.NodeBlock"
+                }
+            ],
+            "NodeConnection": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 1,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.NodeBlock import NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 3,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "NodeConnection",
+                    "raw_statement": "from components.NodeBlock import NodeConnection"
+                }
+            ],
+            "NodeConnection (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+                    "line": 15,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 10,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 54,
+                    "context": "NodeConnection"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+                    "line": 206,
+                    "context": "NodeConnection"
+                }
+            ]
+        },
+        {
+            "defs": [],
+            "ResizeHandle": [
+                "__init__()",
+                "itemChange()"
+            ],
+            "AreaBox": [
+                "__init__()",
+                "update_contained_list()",
+                "collapse()",
+                "expand()",
+                "boundingRect()",
+                "update_label()",
+                "get_main_window()",
+                "set_size()",
+                "update_handle_position()",
+                "set_text_visible()",
+                "itemChange()",
+                "mousePressEvent()",
+                "mouseDoubleClickEvent()",
+                "contextMenuEvent()",
+                "edit_comment()"
+            ],
+            "FunctionalBox": [
+                "__init__()",
+                "set_size()",
+                "itemChange()",
+                "update_contained_nodes()",
+                "mouseDoubleClickEvent()"
+            ],
+            "VisualNode": [
+                "__init__()",
+                "boundingRect()",
+                "paint()",
+                "mouseDoubleClickEvent()",
+                "get_main_window()",
+                "itemChange()",
+                "apply_update_from_box()",
+                "get_port_at()",
+                "set_text_visible()",
+                "mousePressEvent()",
+                "update_properties()",
+                "get_port_scene_pos()",
+                "is_port_clicked()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\dataLoader.py",
+        {
+            "load_data_from_file": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 13,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "load_data_from_file",
+                    "raw_statement": "from components.dataLoader import load_data_from_file"
+                }
+            ],
+            "apply_data_to_scene": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 13,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "apply_data_to_scene",
+                    "raw_statement": "from components.dataLoader import apply_data_to_scene"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 14,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "apply_data_to_scene",
+                    "raw_statement": "from components.dataLoader import apply_data_to_scene"
+                }
+            ],
+            "apply_data_to_scene (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 315,
+                    "context": "apply_data_to_scene"
+                },
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 330,
+                    "context": "apply_data_to_scene"
+                },
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 197,
+                    "context": "apply_data_to_scene"
+                }
+            ],
+            "load_data_from_file (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 338,
+                    "context": "load_data_from_file"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "normalize_reference()",
+                "normalize_node_data()",
+                "load_nodes_into_scene()",
+                "establish_connections()",
+                "load_groups_into_listwidget()",
+                "apply_data_to_scene()",
+                "load_data_from_file()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\dataSaver.py",
+        {
+            "save_data_from_scene": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 12,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "save_data_from_scene",
+                    "raw_statement": "from components.dataSaver import save_data_from_scene"
+                }
+            ],
+            "save_data_from_scene (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\main.py",
+                    "line": 353,
+                    "context": "save_data_from_scene"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "collect_nodes_from_scene()",
+                "collect_boxs()",
+                "extract_id_name()",
+                "collect_groups_from_listwidget()",
+                "save_data_from_scene()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\Basic.py",
+        {
+            "Basic": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 10,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "Basic",
+                    "raw_statement": "from components import Basic"
+                }
+            ],
+            "cleanUpTemp (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 76,
+                    "context": "Basic.cleanUpTemp"
+                }
+            ],
+            "get_type_by_name (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 77,
+                    "context": "Basic.get_type_by_name"
+                }
+            ],
+            "request_update (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 78,
+                    "context": "Basic.request_update"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "cleanUpTemp()",
+                "get_type_by_name()",
+                "request_update()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\Dialogs.py",
+        {
+            "BulkAddDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "BulkAddDialog",
+                    "raw_statement": "from components.Dialogs import BulkAddDialog"
+                }
+            ],
+            "MassEditDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "MassEditDialog",
+                    "raw_statement": "from components.Dialogs import MassEditDialog"
+                }
+            ],
+            "MassEditDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 13,
+                    "context": "MassEditDialog"
+                }
+            ],
+            "BulkAddDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\Edit.py",
+                    "line": 29,
+                    "context": "BulkAddDialog"
+                }
+            ],
+            "CommentEditDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "CommentEditDialog",
+                    "raw_statement": "from components.Dialogs import CommentEditDialog"
+                }
+            ],
+            "MassUpdateDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "MassUpdateDialog",
+                    "raw_statement": "from components.Dialogs import MassUpdateDialog"
+                }
+            ],
+            "EditDialog": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 7,
+                    "import_type": "From-Import (Element)",
+                    "imported_as": "EditDialog",
+                    "raw_statement": "from components.Dialogs import EditDialog"
+                }
+            ],
+            "CommentEditDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 278,
+                    "context": "CommentEditDialog"
+                }
+            ],
+            "MassUpdateDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 341,
+                    "context": "MassUpdateDialog"
+                }
+            ],
+            "EditDialog (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\components\\NodeBlock.py",
+                    "line": 430,
+                    "context": "EditDialog"
+                }
+            ]
+        },
+        {
+            "defs": [],
+            "CommentEditDialog": [
+                "__init__()",
+                "get_data()"
+            ],
+            "MassUpdateDialog": [
+                "__init__()",
+                "pedigree_backtracker()",
+                "get_data()"
+            ],
+            "EditDialog": [
+                "__init__()",
+                "pedigree_backtracker()",
+                "get_updated_data()"
+            ],
+            "MassEditDialog": [
+                "__init__()",
+                "get_data()"
+            ],
+            "BulkAddDialog": [
+                "__init__()",
+                "get_data()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\components\\tableBuilder.py",
+        {},
+        {
+            "defs": []
+        }
+    ],
+    [
+        "E:\\autoconstruction\\ui\\controls\\controlHandler.py",
+        {
+            "controlHandler": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 11,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "controlHandler",
+                    "raw_statement": "from ui.controls import controlHandler"
+                }
+            ],
+            "focusOut (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 117,
+                    "context": "controlHandler.focusOut"
+                }
+            ],
+            "rightClickMenu (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 120,
+                    "context": "controlHandler.rightClickMenu"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "focusOut()",
+                "rightClickMenu()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\ui\\controls\\keyControl.py",
+        {
+            "keyControl": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 11,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "keyControl",
+                    "raw_statement": "from ui.controls import keyControl"
+                }
+            ],
+            "keyPress (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 110,
+                    "context": "keyControl.keyPress"
+                }
+            ],
+            "keyRelease (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 113,
+                    "context": "keyControl.keyRelease"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "keyAlt()",
+                "keyArrows()",
+                "keyDelete()",
+                "keyCtrl_V()",
+                "keyCtrl_C()",
+                "keyPress()",
+                "keyRelease()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\ui\\controls\\mouseControl.py",
+        {
+            "mouseControl": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 11,
+                    "import_type": "From-Import (Module)",
+                    "imported_as": "mouseControl",
+                    "raw_statement": "from ui.controls import mouseControl"
+                }
+            ],
+            "wheelControl (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 94,
+                    "context": "mouseControl.wheelControl"
+                }
+            ],
+            "drop (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 97,
+                    "context": "mouseControl.drop"
+                }
+            ],
+            "mouseMove (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 100,
+                    "context": "mouseControl.mouseMove"
+                }
+            ],
+            "mousePress (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 103,
+                    "context": "mouseControl.mousePress"
+                }
+            ],
+            "mouseRelease (Used)": [
+                {
+                    "file": "E:\\autoconstruction\\ui\\Visual.py",
+                    "line": 106,
+                    "context": "mouseControl.mouseRelease"
+                }
+            ]
+        },
+        {
+            "defs": [
+                "wheelControl()",
+                "drop()",
+                "mouseMove()",
+                "mousePress()",
+                "mouseRelease()"
+            ]
+        }
+    ],
+    [
+        "E:\\autoconstruction\\api\\funcAnalysis\\FromTracker.py",
+        {},
+        {
+            "defs": [],
+            "FromTracker": [
+                "__init__()",
+                "example_data()",
+                "convert()"
+            ]
+        }
+    ]
+]

@@ -103,6 +103,35 @@ class ModuleCodeAnalyzer:
         # Element 중심 구조
         self.element_data[category][item_name].append((lineno, scope))
 
+    def get_structure(self) -> dict:
+        """모듈 내 클래스(및 하위 메서드)와 독립 함수(Global functions)만 추출하여 딕셔너리로 반환
+
+        :return: { 'ClassName': ['method1()', 'method2()'], ..., 'defs':
+        ['func1()', 'func2()'] }
+        """
+        result = defaultdict(list)
+        result["defs"] = []
+
+        if not self.tree:
+            return dict(result)
+
+        for node in self.tree.body:
+            # 1. 최상위(Global) 클래스 정의 감지
+            if isinstance(node, ast.ClassDef):
+                methods = []
+                for child in node.body:
+                    if isinstance(
+                        child, (ast.FunctionDef, ast.AsyncFunctionDef)
+                    ):
+                        methods.append(f"{child.name}()")
+                result[node.name] = methods
+
+            # 2. 최상위(Global) 독립 함수 정의 감지
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                result["defs"].append(f"{node.name}()")
+
+        return dict(result)
+
     def _parse_all_nodes(self):
         """AST 노드를 순회하며 데이터 수집 (클래스/인스턴스 변수 감지 보완)"""
         for node in ast.walk(self.tree):
@@ -462,4 +491,4 @@ if __name__ == "__main__":
     # file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
 
     analyzer = ModuleCodeAnalyzer(file_target)
-    analyzer.element_centric_summary()
+    analyzer.scope_centric_summary()

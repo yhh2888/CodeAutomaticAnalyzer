@@ -1,6 +1,8 @@
-import ast
+import ast, os, json
 from collections import defaultdict
 from pathlib import Path
+
+from funcElementAnatomy import ModuleCodeAnalyzer
 
 
 class ImportTracker:
@@ -195,7 +197,7 @@ class ImportTracker:
                     self.usage_map[f"{original_name} (Used)"].append({
                         "file": str(file_path),
                         "line": lineno,
-                        "context": f"코드 내부에서 '{node.id}' 변수/함수로 사용됨",
+                        "context": f"{node.id}",
                     })
 
             # B. from components import Edit / import Edit -> Edit.update_settings() 형태 사용
@@ -208,7 +210,7 @@ class ImportTracker:
                         self.usage_map[f"{attr_name} (Used)"].append({
                             "file": str(file_path),
                             "line": lineno,
-                            "context": f"모듈 별칭을 통해 '{node.value.id}.{attr_name}' 형태로 사용됨",
+                            "context": f"{node.value.id}.{attr_name}",
                         })
 
     def print_import_summary(self):
@@ -263,11 +265,34 @@ class ImportTracker:
             "================================================================================"
         )
 
+    def export_channel(self, json_file_path=r"data\export_data.json"):
+        """export channel for ECScoreView"""
+        export_data = []
+        for num, i in enumerate(tracker._get_all_python_files()):
+            a = tracker.track_element_imports(target_module_name=i.name)
+            # pprint() # 필요시 사용
+            analyzer = ModuleCodeAnalyzer(os.path.abspath(i))
+            export_data.append([
+                os.path.abspath(i),
+                dict(tracker.usage_map.items()),
+                analyzer.get_structure(),
+            ])
+
+        # ---------------------------------------------------------
+        # JSON 파일로 쓰기 (Save to JSON)
+        # ---------------------------------------------------------
+        with open(json_file_path, "w", encoding="utf-8") as f:
+            # indent=4 : 가독성 좋게 들여쓰기 적용
+            # ensure_ascii=False : 한글 깨짐 방지
+            # default=str : Path 객체 등 JSON 기본 규격에 없는 타입을 문자열로 자동 변환
+            json.dump(export_data, f, indent=4, ensure_ascii=False, default=str)
+
+        
 
 if __name__ == "__main__":
     # 1. 탐색할 루트 디렉토리
     target_directory = r"E:\autoconstruction"
-
+    file_target = r"E:\autoconstruction\ui\Visual.py"
     tracker = ImportTracker(target_directory)
 
     # (선택 사항) 대상 디렉토리의 모든 파이썬 파일 출력
@@ -275,10 +300,23 @@ if __name__ == "__main__":
 
     # 2. 추적할 모듈명 및 내부 요소를 지정
     # 예: 'Edit' 모듈 내부의 'ModuleCodeAnalyzer', 'update_settings' 요소 추적
-    tracker.track_element_imports(
-        target_module_name="controlHandler",
-        target_elements=["ModuleCodeAnalyzer", "update_settings"],
-    )
-
+    a = tracker.track_element_imports(
+        target_module_name=file_target)
+    
     # 3. 결과 요약 출력
     tracker.print_import_summary()
+
+    analyzer = ModuleCodeAnalyzer(file_target)
+    print(dict(tracker.usage_map.items()), analyzer.get_structure())
+    tracker.export_channel()
+
+import pprint
+"""
+for num,i in enumerate(tracker._get_all_python_files()):
+    a = tracker.track_element_imports(
+        target_module_name=i.name)
+    print('\n\n\n\n', num, '\n', i.name)
+    pprint(dict(tracker.usage_map.items()))
+    analyzer = ModuleCodeAnalyzer(os.path.abspath(i))
+    pprint(analyzer.get_structure())
+"""
