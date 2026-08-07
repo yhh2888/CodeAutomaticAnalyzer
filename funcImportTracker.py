@@ -1,19 +1,31 @@
 import ast, os, json
 from collections import defaultdict
 from pathlib import Path
+from pprint import pprint
+
+import tkinter as tk
+from tkinter import filedialog
 
 from funcElementAnatomy import ModuleCodeAnalyzer
 
 
 class ImportTracker:
-    """지정한 디렉토리 하위의 모든 .py 파일을 전수 조사하여,
-
-    특정 모듈/함수/클래스/변수 등의 요소가 어디에 Import되고 사용되었는지 추적하는 클래스
-    """
-
     def __init__(self, target_dir: str):
-        """:param target_dir: 검색 대상 루트 디렉토리 경로"""
-        self.target_dir = Path(target_dir)
+        if target_dir == 'find':
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes('-topmost', True)  # 선택 창을 화면 최상단에 표시
+
+            selected_path = filedialog.askdirectory(title="탐색할 루트 디렉토리를 선택하세요")
+
+            if not selected_path:
+                raise ValueError
+            else:
+                self.target_dir = Path(selected_path)
+
+            root.destroy()  # GUI 리소스 해제
+        else:    
+            self.target_dir = Path(target_dir)
         # 검색 결과 구조: { target_element: [ { "file": ..., "line": ..., ... }, ... ] }
         self.usage_map = defaultdict(list)
         # 분석 실패(인코딩/문법 에러) 파일 목록
@@ -265,27 +277,30 @@ class ImportTracker:
             "================================================================================"
         )
 
-    def export_channel(self, json_file_path=r"data\export_data.json"):
+    def export_channel(self, json_file_path=r"data\export_data.json", method = 'in_object'):
         """export channel for ECScoreView"""
         export_data = []
-        for num, i in enumerate(tracker._get_all_python_files()):
-            a = tracker.track_element_imports(target_module_name=i.name)
+        for num, i in enumerate(self._get_all_python_files()):
+            a = self.track_element_imports(target_module_name=i.name)
             # pprint() # 필요시 사용
             analyzer = ModuleCodeAnalyzer(os.path.abspath(i))
             export_data.append([
                 os.path.abspath(i),
-                dict(tracker.usage_map.items()),
+                dict(self.usage_map.items()),
                 analyzer.get_structure(),
             ])
 
-        # ---------------------------------------------------------
-        # JSON 파일로 쓰기 (Save to JSON)
-        # ---------------------------------------------------------
-        with open(json_file_path, "w", encoding="utf-8") as f:
-            # indent=4 : 가독성 좋게 들여쓰기 적용
-            # ensure_ascii=False : 한글 깨짐 방지
-            # default=str : Path 객체 등 JSON 기본 규격에 없는 타입을 문자열로 자동 변환
-            json.dump(export_data, f, indent=4, ensure_ascii=False, default=str)
+        if method == 'in_object':
+            self.export_data = export_data
+        if method == 'json':
+            # ---------------------------------------------------------
+            # JSON 파일로 쓰기 (Save to JSON)
+            # ---------------------------------------------------------
+            with open(json_file_path, "w", encoding="utf-8") as f:
+                # indent=4 : 가독성 좋게 들여쓰기 적용
+                # ensure_ascii=False : 한글 깨짐 방지
+                # default=str : Path 객체 등 JSON 기본 규격에 없는 타입을 문자열로 자동 변환
+                json.dump(export_data, f, indent=4, ensure_ascii=False, default=str)
 
         
 
@@ -308,9 +323,8 @@ if __name__ == "__main__":
 
     analyzer = ModuleCodeAnalyzer(file_target)
     print(dict(tracker.usage_map.items()), analyzer.get_structure())
-    tracker.export_channel()
+    # tracker.export_channel(method='json')
 
-import pprint
 """
 for num,i in enumerate(tracker._get_all_python_files()):
     a = tracker.track_element_imports(

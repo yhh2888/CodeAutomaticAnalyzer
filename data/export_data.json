@@ -1451,6 +1451,7 @@
             "FromTracker": [
                 "__init__()",
                 "example_data()",
+                "load_tracker_data()",
                 "convert()"
             ]
         }
