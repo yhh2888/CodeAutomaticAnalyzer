@@ -1,2 +1,2 @@
 # CodeAutomaticAnalyzer
-Anatomize Python Module Automatically
+Analyze Python Function Automatically
