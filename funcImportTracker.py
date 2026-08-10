@@ -225,6 +225,130 @@ class ImportTracker:
                             "context": f"{node.value.id}.{attr_name}",
                         })
 
+    def _build_usage_maps_for_modules(self, py_files, target_modules):
+        """단일 디렉토리 스캔으로 여러 모듈의 import/사용 기록을 수집"""
+        module_usage_maps = {module: defaultdict(list) for module in target_modules}
+        self.failed_files.clear()
+
+        for file_path in py_files:
+            content = None
+            for enc in ["utf-8", "utf-8-sig", "cp949", "euc-kr"]:
+                try:
+                    with open(file_path, "r", encoding=enc) as f:
+                        content = f.read()
+                        break
+                except Exception:
+                    continue
+
+            if content is None:
+                self.failed_files.append((str(file_path), "인코딩 오류"))
+                continue
+
+            try:
+                tree = ast.parse(content, filename=str(file_path))
+            except SyntaxError as e:
+                self.failed_files.append(
+                    (str(file_path), f"SyntaxError (Line {e.lineno})")
+                )
+                continue
+            except Exception as e:
+                self.failed_files.append((str(file_path), f"파싱 에러: {e}"))
+                continue
+
+            self._scan_ast_for_imports_into_maps(
+                tree, file_path, target_modules, module_usage_maps
+            )
+
+        return module_usage_maps
+
+    def _scan_ast_for_imports_into_maps(
+        self,
+        tree: ast.AST,
+        file_path: Path,
+        target_modules: set,
+        module_usage_maps: dict,
+        target_elements: set = None,
+    ):
+        imported_aliases = {}
+        module_aliases = {}
+
+        for node in ast.walk(tree):
+            lineno = getattr(node, "lineno", None)
+
+            if isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                last_name = mod.split(".")[-1] if mod else ""
+
+                if last_name in target_modules:
+                    target_module = last_name
+                    for alias in node.names:
+                        imported_name = alias.name
+                        as_name = alias.asname or imported_name
+
+                        if not target_elements or imported_name in target_elements:
+                            imported_aliases[as_name] = (target_module, imported_name)
+                            module_usage_maps[target_module][imported_name].append({
+                                "file": str(file_path),
+                                "line": lineno,
+                                "import_type": "From-Import (Element)",
+                                "imported_as": as_name,
+                                "raw_statement": f"from {mod} import {imported_name}",
+                            })
+
+                for alias in node.names:
+                    imported_name = alias.name
+                    as_name = alias.asname or imported_name
+                    if imported_name in target_modules:
+                        module_aliases[as_name] = imported_name
+                        module_usage_maps[imported_name][imported_name].append({
+                            "file": str(file_path),
+                            "line": lineno,
+                            "import_type": "From-Import (Module)",
+                            "imported_as": as_name,
+                            "raw_statement": f"from {mod} import {imported_name}",
+                        })
+
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    mod_name = alias.name
+                    as_name = alias.asname or mod_name.split(".")[-1]
+                    last_name = mod_name.split(".")[-1]
+
+                    if last_name in target_modules:
+                        module_aliases[as_name] = last_name
+                        module_usage_maps[last_name][last_name].append({
+                            "file": str(file_path),
+                            "line": lineno,
+                            "import_type": "Direct-Import",
+                            "imported_as": as_name,
+                            "raw_statement": f"import {mod_name}",
+                        })
+
+        for node in ast.walk(tree):
+            lineno = getattr(node, "lineno", None)
+
+            if isinstance(node, ast.Name) and node.id in imported_aliases:
+                if not isinstance(getattr(node, "ctx", None), ast.Store):
+                    target_module, original_name = imported_aliases[node.id]
+                    module_usage_maps[target_module][f"{original_name} (Used)"].append({
+                        "file": str(file_path),
+                        "line": lineno,
+                        "context": f"{node.id}",
+                    })
+
+            elif isinstance(node, ast.Attribute) and isinstance(
+                node.value, ast.Name
+            ):
+                if node.value.id in module_aliases:
+                    target_module = module_aliases[node.value.id]
+                    attr_name = node.attr
+                    if not target_elements or attr_name in target_elements:
+                        module_usage_maps[target_module][f"{attr_name} (Used)"].append({
+                            "file": str(file_path),
+                            "line": lineno,
+                            "context": f"{node.value.id}.{attr_name}",
+                        })
+
     def print_import_summary(self):
         """Import 추적 결과를 가독성 있게 출력"""
         print(
@@ -277,29 +401,25 @@ class ImportTracker:
             "================================================================================"
         )
 
-    def export_channel(self, json_file_path=r"data\export_data.json", method = 'in_object'):
+    def export_channel(self, json_file_path=r"data\export_data.json", method='in_object'):
         """export channel for ECScoreView"""
+        py_files = self._get_all_python_files()
+        target_modules = {file_path.stem for file_path in py_files}
+        module_usage_maps = self._build_usage_maps_for_modules(py_files, target_modules)
+
         export_data = []
-        for num, i in enumerate(self._get_all_python_files()):
-            a = self.track_element_imports(target_module_name=i.name)
-            # pprint() # 필요시 사용
-            analyzer = ModuleCodeAnalyzer(os.path.abspath(i))
+        for file_path in py_files:
+            analyzer = ModuleCodeAnalyzer(os.path.abspath(file_path))
             export_data.append([
-                os.path.abspath(i),
-                dict(self.usage_map.items()),
+                os.path.abspath(file_path),
+                dict(module_usage_maps[file_path.stem].items()),
                 analyzer.get_structure(),
             ])
 
         if method == 'in_object':
             self.export_data = export_data
-        if method == 'json':
-            # ---------------------------------------------------------
-            # JSON 파일로 쓰기 (Save to JSON)
-            # ---------------------------------------------------------
+        elif method == 'json':
             with open(json_file_path, "w", encoding="utf-8") as f:
-                # indent=4 : 가독성 좋게 들여쓰기 적용
-                # ensure_ascii=False : 한글 깨짐 방지
-                # default=str : Path 객체 등 JSON 기본 규격에 없는 타입을 문자열로 자동 변환
                 json.dump(export_data, f, indent=4, ensure_ascii=False, default=str)
 
         
