@@ -147,8 +147,8 @@ class FuncOrigin:
 # 🚀 연동 실행 테스트
 # ==========================================
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\components\Edit.py"
-    file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    #file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
     
     # 1. FuncElementAnatomy 분석 진행
     anatomy_analyzer = ModuleCodeAnalyzer(file_target)

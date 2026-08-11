@@ -487,7 +487,7 @@ class ModuleCodeAnalyzer:
 
 
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\main.py"
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
     # file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
 
     analyzer = ModuleCodeAnalyzer(file_target)
