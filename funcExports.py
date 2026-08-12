@@ -31,6 +31,8 @@ class FuncExport:
             try:
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
                 tree = ast.parse(content)
+                # 모듈 이름을 Module AST 노드에 저장하면 하위 노드에서 접근 가능
+                tree.module_name = file_path.stem
 
                 # Parent 참조 추가
                 for parent in ast.walk(tree):
@@ -49,10 +51,22 @@ class FuncExport:
 
         while curr:
             if isinstance(curr, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                scopes.append(f"{curr.name}()")
+                scopes.append(f"{curr.name}")
             elif isinstance(curr, ast.ClassDef):
                 scopes.append(curr.name)
             curr = getattr(curr, "parent", None)
+
+        # 최상위 Module 노드를 찾아 module_name이 설정되어 있으면 맨 앞에 추가
+        top = node
+        while getattr(top, "parent", None):
+            top = top.parent
+        module_name = getattr(top, "module_name", None)
+
+        if module_name:
+            if scopes:
+                return f"{module_name}.py -> " + " -> ".join(reversed(scopes))
+            else:
+                return f"{module_name} (모듈 최상위)"
 
         return " -> ".join(reversed(scopes)) if scopes else "Global (모듈 최상위)"
 
@@ -118,7 +132,7 @@ class FuncExport:
                         "file": str(file_path),
                         "line": getattr(node, "lineno", 0),
                         "type": def_type,
-                        "belongs_to_scope": scope_info,  # 속해 있는 클래스/메서드/함수
+                        "scope": scope_info,  # 속해 있는 클래스/메서드/함수
                     })
 
         # -------------------------------------------------------------
@@ -181,7 +195,7 @@ class FuncExport:
                         "file": str(file_path),
                         "module": mod_name,
                         "line": getattr(node, "lineno", 0),
-                        "caller_scope": caller_scope,  # 호출이 일어난 내부 스코프
+                        "scope": caller_scope,  # 호출이 일어난 내부 스코프
                         "action": action_type,
                         "code_snippet": snippet,
                     }
@@ -197,6 +211,7 @@ class FuncExport:
 if __name__ == "__main__":
     # 1. 탐색할 폴더 경로 지정
     target_directory = r"E:\autoconstruction"
+    target_directory = r"C:\Users\hyunhoyang\Desktop\codes\githubcodes\autoconstruction"
 
     # 2. FuncExport 객체 생성 (폴더 내 모든 .py 수집 및 AST 파싱)
     exporter = FuncExport(target_directory)
