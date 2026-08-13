@@ -1,4 +1,5 @@
 import ast
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -9,7 +10,7 @@ class FuncExport:
         """
         :param target_dir: 분석할 최상위 디렉토리 경로
         """
-        self.target_dir = Path(target_dir)
+        self.target_dir = Path(target_dir).resolve()
         self.python_files = self._get_all_python_files()
 
         self.ast_trees = {}
@@ -31,8 +32,8 @@ class FuncExport:
             try:
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
                 tree = ast.parse(content)
-                # 모듈 이름을 Module AST 노드에 저장하면 하위 노드에서 접근 가능
                 tree.module_name = file_path.stem
+                tree.file_path = file_path
 
                 # Parent 참조 추가
                 for parent in ast.walk(tree):
@@ -45,95 +46,119 @@ class FuncExport:
                 print(f"⚠️ 파일 파싱 실패 ({file_path.name}): {e}")
 
     def _get_scope_path(self, node) -> str:
-        """[검토 1] 해당 노드가 위치한 스코프 경로 추적 (클래스 -> 함수 -> 메서드...)"""
+        """해당 노드가 위치한 스코프 경로 추적 (클래스 -> 함수 -> 메서드...)"""
         scopes = []
         curr = getattr(node, "parent", None)
+        module_name = None
 
         while curr:
             if isinstance(curr, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                scopes.append(f"{curr.name}")
+                scopes.append(f"{curr.name}()")
             elif isinstance(curr, ast.ClassDef):
                 scopes.append(curr.name)
+            elif isinstance(curr, ast.Module):
+                module_name = getattr(curr, "module_name", None)
             curr = getattr(curr, "parent", None)
 
-        # 최상위 Module 노드를 찾아 module_name이 설정되어 있으면 맨 앞에 추가
-        top = node
-        while getattr(top, "parent", None):
-            top = top.parent
-        module_name = getattr(top, "module_name", None)
-
+        scope_str = " -> ".join(reversed(scopes)) if scopes else "(모듈 최상위)"
         if module_name:
-            if scopes:
-                return f"{module_name}.py -> " + " -> ".join(reversed(scopes))
-            else:
-                return f"{module_name} (모듈 최상위)"
+            return f"{module_name}.py -> {scope_str}"
+        return scope_str
 
-        return " -> ".join(reversed(scopes)) if scopes else "Global (모듈 최상위)"
+    def _parse_address_target(self, target_name: str):
+        """'C:/repo/x.py:128' 또는 'x.py:128' 같은 주소 형태 파싱"""
+        if not isinstance(target_name, str):
+            return None
+
+        candidate = target_name.strip()
+        if not candidate:
+            return None
+
+        match = re.match(r"^(?P<file>.+?\.py)(?::(?P<line>\d+))?(?::(?P<col>\d+))?$", candidate)
+        if not match:
+            return None
+
+        file_part = match.group("file")
+        line_no = int(match.group("line") or 0)
+
+        return {
+            "file": Path(file_part),
+            "line": line_no,
+        }
 
     def analyze_element(self, target_name: str) -> dict:
-        """특정 대상(함수, 메서드, 어트리뷰트 등)이 폴더 내 전체 파일에서
-
+        """
+        특정 대상(함수, 메서드, 어트리뷰트 등)이 폴더 내 전체 파일에서
         어떻게 속해있고, 외부/로컬에서 호출/참조되는지 검토
         """
         result = {
             "target_element": target_name,
-            "1_defined_locations": [],  # 1. 대상이 속한 위치 (클래스/함수/메서드 스코프)
-            "2_external_calls": [],  # 2. 타 모듈(다른 파일)에서의 호출 및 참조
-            "3_local_calls": [],  # 3. 로컬 모듈(동일 파일)에서의 호출 및 참조
+            "1_defined_locations": [],  # 정의된 위치 목록
+            "2_external_calls": [],     # 외부 파일에서의 호출 및 참조
+            "3_local_calls": [],        # 동일 파일 내에서의 호출 및 참조
         }
 
-        defined_files = set()
+        address_target = self._parse_address_target(target_name)
+        target_lookup_name = target_name
+        defined_files_map = set()  # (file_path) 저장
 
         # -------------------------------------------------------------
-        # 1. 정의 및 선언 위치 검토 (함수, 메서드, 클래스, 어트리뷰트/변수)
+        # 1. 정의 및 선언 위치 검토
         # -------------------------------------------------------------
         for file_path, tree in self.ast_trees.items():
             for node in ast.walk(tree):
                 is_target_def = False
                 def_type = ""
+                element_name = None
 
                 # ① 함수/메서드 정의
-                if (
-                    isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and node.name == target_name
-                ):
-                    is_target_def = True
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    element_name = node.name
                     def_type = "Function/Method"
-
                 # ② 클래스 정의
-                elif isinstance(node, ast.ClassDef) and node.name == target_name:
-                    is_target_def = True
+                elif isinstance(node, ast.ClassDef):
+                    element_name = node.name
                     def_type = "Class"
-
-                # ③ 어트리뷰트/변수 할당 (self.attr = ... 또는 attr = ...)
-                elif isinstance(
-                    node, (ast.Assign, ast.AnnAssign, ast.AugAssign)
-                ):
-                    targets = (
-                        node.targets
-                        if isinstance(node, ast.Assign)
-                        else [node.target]
-                    )
+                # ③ 어트리뷰트/변수 할당
+                elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                     for t in targets:
-                        if isinstance(t, ast.Name) and t.id == target_name:
-                            is_target_def = True
+                        if isinstance(t, ast.Name):
+                            element_name = t.id
                             def_type = "Variable"
-                        elif (
-                            isinstance(t, ast.Attribute)
-                            and t.attr == target_name
-                        ):
-                            is_target_def = True
+                            break
+                        elif isinstance(t, ast.Attribute):
+                            element_name = t.attr
                             def_type = "Attribute"
+                            break
+
+                # 주소 기반 검색인 경우 단순 이름 추출
+                if address_target:
+                    # 주소 지정 모드에서는 노드 위치(파일 및 라인) 일치 여부 검증
+                    is_file_match = file_path.name == address_target["file"].name or file_path.resolve() == address_target["file"].resolve()
+                    is_line_match = not address_target["line"] or getattr(node, "lineno", 0) == address_target["line"]
+                    if is_file_match and is_line_match and element_name:
+                        is_target_def = True
+                        target_lookup_name = element_name
+                else:
+                    if element_name == target_name:
+                        is_target_def = True
 
                 if is_target_def:
-                    defined_files.add(file_path)
                     scope_info = self._get_scope_path(node)
-                    result["1_defined_locations"].append({
+                    location_info = {
                         "file": str(file_path),
                         "line": getattr(node, "lineno", 0),
                         "type": def_type,
-                        "scope": scope_info,  # 속해 있는 클래스/메서드/함수
-                    })
+                        "scope": scope_info,
+                        "element_name": element_name,
+                    }
+                    result["1_defined_locations"].append(location_info)
+                    defined_files_map.add(file_path)
+
+        # 주소 검색이었으나 대상을 찾지 못한 경우 반환
+        if address_target and not result["1_defined_locations"]:
+            return result
 
         # -------------------------------------------------------------
         # 2 & 3. 호출 및 참조 검토 (Call, AttributeAccess, Name)
@@ -143,86 +168,68 @@ class FuncExport:
 
             for node in ast.walk(tree):
                 accessed_name = None
-                action_type = "Reference"  # 단순 참조 or 호출
+                action_type = "Reference"
 
                 # ① 함수/메서드 호출: target() 또는 obj.target()
                 if isinstance(node, ast.Call):
-                    if (
-                        isinstance(node.func, ast.Name)
-                        and node.func.id == target_name
-                    ):
+                    if isinstance(node.func, ast.Name) and node.func.id == target_lookup_name:
                         accessed_name = node.func.id
                         action_type = "Call"
-                    elif (
-                        isinstance(node.func, ast.Attribute)
-                        and node.func.attr == target_name
-                    ):
+                    elif isinstance(node.func, ast.Attribute) and node.func.attr == target_lookup_name:
                         accessed_name = node.func.attr
                         action_type = "Method Call"
 
                 # ② 어트리뷰트 접근: obj.target
-                elif (
-                    isinstance(node, ast.Attribute) and node.attr == target_name
-                ):
-                    # Call의 func로 처리된 것은 중복 방지
-                    if not (
-                        isinstance(getattr(node, "parent", None), ast.Call)
-                        and node.parent.func == node
-                    ):
+                elif isinstance(node, ast.Attribute) and node.attr == target_lookup_name:
+                    if not (isinstance(getattr(node, "parent", None), ast.Call) and node.parent.func == node):
                         accessed_name = node.attr
                         action_type = "Attribute Access"
 
                 # ③ 일반 변수/함수 이름 참조
-                elif isinstance(node, ast.Name) and node.id == target_name:
-                    # 정의(Store) 지점이나 Call의 func로 이미 처리된 경우 제외
-                    if isinstance(
-                        node.ctx, ast.Load
-                    ) and not isinstance(
-                        getattr(node, "parent", None), ast.Call
-                    ):
+                elif isinstance(node, ast.Name) and node.id == target_lookup_name:
+                    if isinstance(node.ctx, ast.Load) and not isinstance(getattr(node, "parent", None), ast.Call):
                         accessed_name = node.id
                         action_type = "Variable Reference"
 
-                # 타겟 요소가 사용된 지점을 발견한 경우
+                # 타깃 사용 지점 발견 시 정보 기록
                 if accessed_name:
                     caller_scope = self._get_scope_path(node)
                     try:
                         snippet = ast.unparse(node)
                     except AttributeError:
-                        snippet = target_name
+                        snippet = target_lookup_name
 
                     call_info = {
                         "file": str(file_path),
                         "module": mod_name,
                         "line": getattr(node, "lineno", 0),
-                        "scope": caller_scope,  # 호출이 일어난 내부 스코프
+                        "scope": caller_scope,
                         "action": action_type,
                         "code_snippet": snippet,
                     }
 
-                    # 정의된 파일과 동일하면 로컬(3), 다르면 외부(2)
-                    if file_path in defined_files:
+                    # 정의된 파일과 동일한 파일 내의 참조면 로컬(3), 다르면 외부(2)
+                    if file_path in defined_files_map:
                         result["3_local_calls"].append(call_info)
                     else:
                         result["2_external_calls"].append(call_info)
 
         return result
 
+
 if __name__ == "__main__":
-    # 1. 탐색할 폴더 경로 지정
-    target_directory = r"E:\autoconstruction"
-    target_directory = r"C:\Users\hyunhoyang\Desktop\codes\githubcodes\autoconstruction"
-
-    # 2. FuncExport 객체 생성 (폴더 내 모든 .py 수집 및 AST 파싱)
-    exporter = FuncExport(target_directory)
-
-    # 3. 검토할 대상 이름 (함수/메서드/어트리뷰트/변수 이름 아무거나)
-    target_element = "bulk_add_nodes"
-
-    # 4. 분석 실행
-    report = exporter.analyze_element(target_element)
-
-    # 5. 결과 확인
+    # 실행 테스트 예시
     import pprint
 
+    # 분석할 디렉토리 경로
+    target_directory = r"E:/autoconstruction"
+
+    exporter = FuncExport(target_directory)
+
+    # 1. 일반 심볼 이름으로 검색
+    report = exporter.analyze_element("load_structure_deprecate_1")
     pprint.pprint(report)
+
+    # 2. 특정 파일:라인 주소 형태로 검색 (예시)
+    # report_addr = exporter.analyze_element("my_script.py:15")
+    # pprint.pprint(report_addr)
