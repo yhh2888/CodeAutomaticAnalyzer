@@ -86,6 +86,64 @@ class FuncExport:
             "line": line_no,
         }
 
+    def _pick_best_definition(self, call_info: dict, defined_locations: list[dict]) -> dict | None:
+        """호출/참조 위치에 가장 잘 맞는 정의를 하나 고름.
+
+        우선순위:
+        1) 같은 파일이면 가장 우선
+        2) 같은 스코프/클래스 경로나 마지막 스코프명이 겹치면 우선
+        3) 같은 파일명이라면 다음 우선
+        4) 그 외에는 라인 차이가 가장 작은 정의를 선택
+        """
+        if not defined_locations:
+            return None
+
+        def scope_tokens(scope: str):
+            if not scope:
+                return []
+            return [part.strip().lower() for part in scope.split("->") if part.strip()]
+
+        call_file = Path(call_info.get("file", "")).resolve()
+        call_scope = str(call_info.get("scope", ""))
+        call_scope_parts = scope_tokens(call_scope)
+
+        best_match = None
+        best_score = float("-inf")
+
+        for defined in defined_locations:
+            def_file = Path(defined.get("file", "")).resolve()
+            def_scope = str(defined.get("scope", ""))
+            def_scope_parts = scope_tokens(def_scope)
+
+            score = 0
+
+            if call_file == def_file:
+                score += 200
+            elif call_file.name == def_file.name:
+                score += 50
+
+            if call_scope and def_scope:
+                if call_scope == def_scope:
+                    score += 150
+                else:
+                    overlapping = len(set(call_scope_parts) & set(def_scope_parts))
+                    score += overlapping * 25
+                    if call_scope_parts and def_scope_parts and call_scope_parts[-1] == def_scope_parts[-1]:
+                        score += 30
+
+            if call_scope and def_scope:
+                # 자동 추론이 가능한 범위에서 스코프 문자열이 비슷할수록 우선
+                score += min(len(call_scope), len(def_scope)) * 0.1
+
+            line_gap = abs(int(defined.get("line", 0)) - int(call_info.get("line", 0)))
+            score -= min(line_gap, 10000) * 0.01
+
+            if score > best_score:
+                best_score = score
+                best_match = defined
+
+        return best_match
+
     def analyze_element(self, target_name: str) -> dict:
         """
         특정 대상(함수, 메서드, 어트리뷰트 등)이 폴더 내 전체 파일에서
@@ -214,6 +272,10 @@ class FuncExport:
                     else:
                         result["2_external_calls"].append(call_info)
 
+        for call_bucket in (result["2_external_calls"], result["3_local_calls"]):
+            for call_info in call_bucket:
+                call_info["element_from"] = self._pick_best_definition(call_info, result["1_defined_locations"])
+
         return result
 
 
@@ -227,7 +289,7 @@ if __name__ == "__main__":
     exporter = FuncExport(target_directory)
 
     # 1. 일반 심볼 이름으로 검색
-    report = exporter.analyze_element("load_structure_deprecate_1")
+    report = exporter.analyze_element("get_data")
     pprint.pprint(report)
 
     # 2. 특정 파일:라인 주소 형태로 검색 (예시)
