@@ -147,7 +147,7 @@ class ModuleCodeAnalyzer:
                     f"ClassDef: {node.name}"
                 )
                 self._record_element(
-                    "Classes", f"class {node.name}", lineno, scope
+                    "classes", f"class {node.name}", lineno, scope
                 )
 
             # 2. 함수 및 메서드 정의
@@ -156,7 +156,7 @@ class ModuleCodeAnalyzer:
                     f"FunctionDef: {node.name}"
                 )
                 self._record_element(
-                    "Functions", f"def {node.name}()", lineno, scope
+                    "functions", f"def {node.name}()", lineno, scope
                 )
 
                 # 파라미터
@@ -173,21 +173,21 @@ class ModuleCodeAnalyzer:
                         f"Param: {arg.arg}"
                     )
                     self._record_element(
-                        "Parameter", f"{arg.arg}", arg_line, func_scope
+                        "parameter", f"{arg.arg}", arg_line, func_scope
                     )
                 if args.vararg:
                     self.line_elements[lineno]["Params"].append(
                         f"Param: *{args.vararg.arg}"
                     )
                     self._record_element(
-                        "Parameter", f"*{args.vararg.arg}", lineno, func_scope
+                        "parameter", f"*{args.vararg.arg}", lineno, func_scope
                     )
                 if args.kwarg:
                     self.line_elements[lineno]["Params"].append(
                         f"Param: **{args.kwarg.arg}"
                     )
                     self._record_element(
-                        "Parameter", f"**{args.kwarg.arg}", lineno, func_scope
+                        "parameter", f"**{args.kwarg.arg}", lineno, func_scope
                     )
 
             # 3. 임포트 (Import / ImportFrom)
@@ -197,7 +197,7 @@ class ModuleCodeAnalyzer:
                         f" as {alias.asname}" if alias.asname else ""
                     )
                     self.line_elements[lineno]["Imports"].append(name_str)
-                    self._record_element("Imports", name_str, lineno, scope)
+                    self._record_element("imports", name_str, lineno, scope)
 
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
@@ -206,7 +206,7 @@ class ModuleCodeAnalyzer:
                         f" as {alias.asname}" if alias.asname else ""
                     )
                     self.line_elements[lineno]["Imports"].append(name_str)
-                    self._record_element("Imports", name_str, lineno, scope)
+                    self._record_element("imports", name_str, lineno, scope)
 
             # 4. 조건문 및 제어문 (If, For, While)
             elif isinstance(node, ast.If):
@@ -219,7 +219,7 @@ class ModuleCodeAnalyzer:
                     f"If ({test_expr})"
                 )
                 self._record_element(
-                    "Control Flow", f"if {test_expr}", lineno, scope
+                    "controlFlow", f"if {test_expr}", lineno, scope
                 )
 
             elif isinstance(node, (ast.For, ast.While)):
@@ -227,7 +227,7 @@ class ModuleCodeAnalyzer:
                     f"Loop ({node.__class__.__name__})"
                 )
                 self._record_element(
-                    "Control Flow",
+                    "controlFlow",
                     f"{node.__class__.__name__.lower()} loop",
                     lineno,
                     scope,
@@ -255,14 +255,14 @@ class ModuleCodeAnalyzer:
                                 f"ClassVar: {var_name}"
                             )
                             self._record_element(
-                                "Class Variable", var_name, lineno, class_scope
+                                "classVariable", var_name, lineno, class_scope
                             )
                         else:
                             self.line_elements[lineno]["Vars"].append(
                                 f"Var: {var_name}"
                             )
                             self._record_element(
-                                "Variable", var_name, lineno, scope
+                                "variable", var_name, lineno, scope
                             )
 
                     # B. 인스턴스 변수 및 속성 할당 (예: self.target_dir = ...)
@@ -281,7 +281,7 @@ class ModuleCodeAnalyzer:
                                 f"InstanceVar: {attr_expr}"
                             )
                             self._record_element(
-                                "Instance Variable",
+                                "instanceVariable",
                                 attr_expr,
                                 lineno,
                                 scope,
@@ -291,7 +291,7 @@ class ModuleCodeAnalyzer:
                                 f"AttrAssign: {attr_expr}"
                             )
                             self._record_element(
-                                "Attribute Assignment",
+                                "attributeAssignment",
                                 attr_expr,
                                 lineno,
                                 scope,
@@ -304,7 +304,7 @@ class ModuleCodeAnalyzer:
                         f"CallFunc: {node.func.id}()"
                     )
                     self._record_element(
-                        "Function", f"{node.func.id}()", lineno, scope
+                        "function", f"{node.func.id}()", lineno, scope
                     )
                 elif isinstance(node.func, ast.Attribute):
                     obj_name = (
@@ -319,7 +319,7 @@ class ModuleCodeAnalyzer:
                         f"CallMethod: [{obj_name}]{method_name}"
                     )
                     self._record_element(
-                        "Called Methods", full_method_str, lineno, scope
+                        "calledMethods", full_method_str, lineno, scope
                     )
 
             # 7. 리턴 문
@@ -334,7 +334,7 @@ class ModuleCodeAnalyzer:
                     else "None"
                 )
                 self.line_elements[lineno]["Returns"].append(f"Return: {val}")
-                self._record_element("Return", f"return {val}", lineno, scope)
+                self._record_element("return", f"return {val}", lineno, scope)
 
             # 8. 예외 처리
             elif isinstance(node, ast.Raise):
@@ -349,7 +349,7 @@ class ModuleCodeAnalyzer:
                 )
                 self.line_elements[lineno]["Raises"].append(f"Raise: {exc_str}")
                 self._record_element(
-                    "Exception Raised", f"raise {exc_str}", lineno, scope
+                    "exceptionRaised", f"raise {exc_str}", lineno, scope
                 )
 
             elif isinstance(node, ast.ExceptHandler):
@@ -366,7 +366,7 @@ class ModuleCodeAnalyzer:
                     f"Except: {exc_type}"
                 )
                 self._record_element(
-                    "Exceptions Handled", f"except {exc_type}", lineno, scope
+                    "exceptionsHandled", f"except {exc_type}", lineno, scope
                 )
 
     def scope_centric_summary(self):
@@ -385,7 +385,7 @@ class ModuleCodeAnalyzer:
             print("  분석할 데이터가 없습니다.")
             return
 
-        sorted_scopes = sorted(
+        sorted_scopes = sorted( 
             self.summary_data.keys(), key=lambda s: (s != "Global", s)
         )
 
@@ -492,3 +492,10 @@ if __name__ == "__main__":
 
     analyzer = ModuleCodeAnalyzer(file_target)
     analyzer.scope_centric_summary()
+
+    # from pprint import pprint 
+
+    # for values in analyzer.element_data.values():
+    #     for key, units in values.items():
+    #         pprint(f"key : {key}")
+    #         pprint(f"units : {units}")
