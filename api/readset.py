@@ -1,9 +1,17 @@
 import sys, ast
 from pathlib import Path
+import builtins
+
+BUILTIN_FUNCTIONS = set(dir(builtins))
+
+STATIC_OBJECTS = {} # 프로젝트에서 임포트한 클래스/모듈 이름 임시변수
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
+
+# is_xx(info) -> is_xx(info) 등으로 중첩되는 함수구조 해결
+# ast로 보는 걸 elementanatomy와 취합해서 통합해보기 
 
 def extract_nested_data(node):
     """Nested Data의 루트 객체와 접근 경로 추출"""
@@ -38,6 +46,19 @@ def extract_nested_data(node):
 
     return None
 
+def is_r3(node):
+    """Object Field 읽기"""
+
+    if not isinstance(node, ast.Attribute):
+        return False
+
+    # self.xxx 는 R2
+    if isinstance(node.value, ast.Name) and node.value.id == "self":
+        return False
+
+    # obj.method() 형태는 R5에서 처리
+    return True
+
 def is_r5(node):
     """External/Object Method인지 판별"""
 
@@ -54,6 +75,36 @@ def is_r5(node):
         return False
 
     return True
+
+def is_r6(node, imported_functions=None):
+    """Global / Static / Builtin"""
+
+    imported_functions = imported_functions or set()
+
+    # len(), sum(), enumerate(), hasattr() ...
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+        if node.func.id in BUILTIN_FUNCTIONS:
+            return True
+        if node.func.id in imported_functions:
+            return True
+
+    # QInputDialog.getText()
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        if (
+            isinstance(node.func.value, ast.Name)
+            and node.func.value.id in STATIC_OBJECTS
+        ):
+            return True
+
+    # Qt.UserRole
+    if isinstance(node, ast.Attribute):
+        if (
+            isinstance(node.value, ast.Name)
+            and node.value.id in STATIC_OBJECTS
+        ):
+            return True
+
+    return False
 
 def classify_read(node):
     codeInfo = node.key().split(' ')
@@ -103,11 +154,19 @@ def is_object_method(structInfo):
     else:
         return False
 
-def is_object_field():
-    pass
+def is_object_field(structInfo):
+    astForm = ast.parse(structInfo, mode="eval").body
+    if is_r3(astForm):
+        return True
+    else:
+        return False
 
-def is_global_or_static():
-    pass
+def is_global_or_static(structInfo):
+    astForm = ast.parse(structInfo, mode="eval").body
+    if is_r6(astForm):
+        return True
+    else:
+        return False
 
 """
 Rn - 자동화 시 수행 작업
