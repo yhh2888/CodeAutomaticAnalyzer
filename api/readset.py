@@ -1,4 +1,4 @@
-import sys, ast
+import sys, ast, re
 from pathlib import Path
 import builtins
 
@@ -10,11 +10,47 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
 
-# is_xx(info) -> is_xx(info) 등으로 중첩되는 함수구조 해결
+def unwrap_ast(node):
+    """
+    exec/eval 모두 동일한 AST 노드를 반환.
+
+    exec : Module -> Expr -> 실제 노드
+    eval : Expression -> 실제 노드
+    """
+    # Module.body
+    if isinstance(node, list):
+        if not node:
+            return None
+        node = node[0]
+
+    # Module -> Expr
+    if isinstance(node, ast.Expr):
+        node = node.value
+
+    return node
+
+def normalize_called_method(s: str) -> str:
+    # 양끝 ' 제거
+    s = s.strip()
+    if len(s) >= 2 and s[0] == "'" and s[-1] == "'":
+        s = s[1:-1]
+
+    # 마지막 '].' 찾기
+    idx = s.rfind("].")
+    if idx == -1:
+        return s
+
+    # '[receiver].method()' 형태인지 확인
+    if s.startswith("["):
+        return s[1:idx] + "." + s[idx + 2:]
+
+    return s
+
 # ast로 보는 걸 elementanatomy와 취합해서 통합해보기 
+# 일반 변수 not In인거 해결하기
 
 def extract_nested_data(node):
-    """Nested Data의 루트 객체와 접근 경로 추출"""
+    node = unwrap_ast(node)
 
     # obj["key"]
     if isinstance(node, ast.Subscript):
@@ -47,48 +83,45 @@ def extract_nested_data(node):
     return None
 
 def is_r3(node):
-    """Object Field 읽기"""
+    node = unwrap_ast(node)
 
     if not isinstance(node, ast.Attribute):
         return False
 
-    # self.xxx 는 R2
     if isinstance(node.value, ast.Name) and node.value.id == "self":
         return False
 
-    # obj.method() 형태는 R5에서 처리
     return True
 
 def is_r5(node):
-    """External/Object Method인지 판별"""
+    node = unwrap_ast(node)
 
-    # 함수 호출이 아니면 제외
     if not isinstance(node, ast.Call):
         return False
 
-    # obj.method() 형태가 아니면 제외 (예: len(), sum())
     if not isinstance(node.func, ast.Attribute):
         return False
 
-    # self.method() 는 R2
+    # self.xxx()
     if isinstance(node.func.value, ast.Name) and node.func.value.id == "self":
+        return False
+
+    # obj.get() 은 R4
+    if node.func.attr == "get":
         return False
 
     return True
 
 def is_r6(node, imported_functions=None):
-    """Global / Static / Builtin"""
-
+    node = unwrap_ast(node)
     imported_functions = imported_functions or set()
 
-    # len(), sum(), enumerate(), hasattr() ...
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
         if node.func.id in BUILTIN_FUNCTIONS:
             return True
         if node.func.id in imported_functions:
             return True
 
-    # QInputDialog.getText()
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
         if (
             isinstance(node.func.value, ast.Name)
@@ -96,7 +129,6 @@ def is_r6(node, imported_functions=None):
         ):
             return True
 
-    # Qt.UserRole
     if isinstance(node, ast.Attribute):
         if (
             isinstance(node.value, ast.Name)
@@ -107,66 +139,79 @@ def is_r6(node, imported_functions=None):
     return False
 
 def classify_read(node):
-    codeInfo = node.key().split(' ')
+    codeInfo = node.split(' ')
     typeInfo = codeInfo[0]
-    structInfo = codeInfo[1]
+    structInfo = ' '.join(codeInfo[1:])
+    structInfo = normalize_called_method(structInfo)
+    print('\n', node, structInfo)
 
-    if is_parameter(typeInfo):
+
+    if typeInfo in ['controlFlow', 'imports', 'functions']:
+        return 'AlienType'
+
+    elif is_parameter(typeInfo):
         return "R1"
 
-    if is_self_reference(structInfo):
+    elif is_self_reference(structInfo):
         return "R2"
 
-    if is_nested_data(node):      # obj[key], obj.get()
+    elif is_nested_data(structInfo):      # obj[key], obj.get()
         return "R4"
 
-    if is_object_method(node):    # obj.method()
+    elif is_object_method(structInfo):    # obj.method()
         return "R5"
 
-    if is_object_field(node):     # obj.attr
+    elif is_object_field(structInfo):     # obj.attr
         return "R3"
 
-    if is_global_or_static(node):
+    elif is_global_or_static(structInfo):
         return "R6"
+
+    return 'Not In'
 
 def is_parameter(typeInfo):
     if typeInfo == 'parameter':
         return True
     else:
         return False
-    
+
 def is_self_reference(structInfo):
-    structs = structInfo.split('].')
-    if structs[0][1:] == "self" and not is_nested_data(structInfo):
-        pass
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+
+    if isinstance(astForm, ast.Attribute):
+        return (
+            isinstance(astForm.value, ast.Name)
+            and astForm.value.id == "self"
+        )
+
+    if isinstance(astForm, ast.Call):
+        return (
+            isinstance(astForm.func, ast.Attribute)
+            and isinstance(astForm.func.value, ast.Name)
+            and astForm.func.value.id == "self"
+            and astForm.func.attr != "get"
+        )
+
+    return False
 
 def is_nested_data(structInfo):
-    astForm = ast.parse(structInfo, mode="eval").body
-    if extract_nested_data(astForm):
-        return True
-    else:
-        return False
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    return extract_nested_data(astForm) is not None
+
 
 def is_object_method(structInfo):
-    astForm = ast.parse(structInfo, mode="eval").body
-    if is_r5(astForm) and not extract_nested_data(astForm):
-        return True
-    else:
-        return False
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    return is_r5(astForm)
+
 
 def is_object_field(structInfo):
-    astForm = ast.parse(structInfo, mode="eval").body
-    if is_r3(astForm):
-        return True
-    else:
-        return False
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    return is_r3(astForm)
+
 
 def is_global_or_static(structInfo):
-    astForm = ast.parse(structInfo, mode="eval").body
-    if is_r6(astForm):
-        return True
-    else:
-        return False
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    return is_r6(astForm)
 
 """
 Rn - 자동화 시 수행 작업
@@ -195,8 +240,6 @@ if __name__ == "__main__":
 
     from pprint import pprint
 
-    for values in analyzer.element_data.values():
-        for key, units in values.items():
-            pprint(f"key : {key.split(' ')[-1]}")
-            pprint(f"units : {units}")
-
+    for values in analyzer.summary_data.values():
+        for dicts in values:
+            print(dicts, classify_read(dicts))
