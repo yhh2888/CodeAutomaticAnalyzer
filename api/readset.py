@@ -85,13 +85,19 @@ def extract_nested_data(node):
 def is_r3(node):
     node = unwrap_ast(node)
 
-    if not isinstance(node, ast.Attribute):
+    # 객체 참조 변수: dst, src, main_win, conn ...
+    if isinstance(node, ast.Name):
+        if node.id not in {"self", "True", "False", "None"}:
+            return True
         return False
 
-    if isinstance(node.value, ast.Name) and node.value.id == "self":
-        return False
+    # 객체 필드: dst.data, conn.rel_type ...
+    if isinstance(node, ast.Attribute):
+        if isinstance(node.value, ast.Name) and node.value.id == "self":
+            return False
+        return True
 
-    return True
+    return False
 
 def is_r5(node):
     node = unwrap_ast(node)
@@ -167,7 +173,7 @@ def classify_read(node):
     elif is_global_or_static(structInfo):
         return "R6"
 
-    return 'Not In'
+    return 'Not In R'
 
 def is_parameter(typeInfo):
     if typeInfo == 'parameter':
@@ -240,6 +246,11 @@ if __name__ == "__main__":
 
     from pprint import pprint
 
+    classified_dict = {"R1":[], "R2":[], "R3":[], "R4":[], "R5":[], "R6":[], "Not In R":[], "AlienType":[]}
+    
     for values in analyzer.summary_data.values():
         for dicts in values:
-            print(dicts, classify_read(dicts))
+            classified_dict[classify_read(dicts)].append(dicts)
+
+    for key in classified_dict:
+        print(f"{key}:", len(classified_dict[key]))
