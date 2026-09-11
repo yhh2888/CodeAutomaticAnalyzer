@@ -11,21 +11,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from funcElementAnatomy import *
 
 def unwrap_ast(node):
-    """
-    exec/eval 모두 동일한 AST 노드를 반환.
-
-    exec : Module -> Expr -> 실제 노드
-    eval : Expression -> 실제 노드
-    """
-    # Module.body
+    # exec: body(list) -> Expr -> 실제 노드
     if isinstance(node, list):
         if not node:
             return None
         node = node[0]
 
-    # Module -> Expr
     if isinstance(node, ast.Expr):
         node = node.value
+
+    if isinstance(node, ast.Expression):
+        node = node.body
 
     return node
 
@@ -122,25 +118,28 @@ def is_r6(node, imported_functions=None):
     node = unwrap_ast(node)
     imported_functions = imported_functions or set()
 
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-        if node.func.id in BUILTIN_FUNCTIONS:
-            return True
-        if node.func.id in imported_functions:
-            return True
+    # Function 'sum()' / Called Method 'sum()'
+    if isinstance(node, ast.Call):
+        if isinstance(node.func, ast.Name):
+            return (
+                node.func.id in BUILTIN_FUNCTIONS or
+                node.func.id in imported_functions
+            )
 
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
         if (
-            isinstance(node.func.value, ast.Name)
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
             and node.func.value.id in STATIC_OBJECTS
         ):
             return True
 
-    if isinstance(node, ast.Attribute):
-        if (
-            isinstance(node.value, ast.Name)
-            and node.value.id in STATIC_OBJECTS
-        ):
-            return True
+    # Qt.UserRole
+    if (
+        isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id in STATIC_OBJECTS
+    ):
+        return True
 
     return False
 
@@ -172,6 +171,9 @@ def classify_read(node):
 
     elif is_global_or_static(structInfo):
         return "R6"
+
+    elif is_return(structInfo):
+        return "is_return"
 
     return 'Not In R'
 
@@ -219,6 +221,27 @@ def is_global_or_static(structInfo):
     astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
     return is_r6(astForm)
 
+def is_return(node):
+    node = unwrap_ast(node)
+
+    return isinstance(node, ast.Return)
+
+def categorize_test(file_target):
+    analyzer = ModuleCodeAnalyzer(file_target)
+
+    classified_dict = {"R1":[], "R2":[], "R3":[], "R4":[], "R5":[], "R6":[], "Not In R":[], "AlienType":[], "is_return":[]}
+    
+    for values in analyzer.summary_data.values():
+        for dicts in values:
+            classified_to = classify_read(dicts)
+            classified_dict[classified_to].append(dicts)
+            print("type: " + classified_to)
+
+    print('\n')
+
+    for key in classified_dict:
+        print(f"{key}:", len(classified_dict[key]))
+
 """
 Rn - 자동화 시 수행 작업
 
@@ -240,17 +263,7 @@ def R1_is_shift():
     pass
 
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\components\NodeEdit.py"
-    analyzer = ModuleCodeAnalyzer(file_target)
-    analyzer.scope_centric_summary()
-
     from pprint import pprint
 
-    classified_dict = {"R1":[], "R2":[], "R3":[], "R4":[], "R5":[], "R6":[], "Not In R":[], "AlienType":[]}
-    
-    for values in analyzer.summary_data.values():
-        for dicts in values:
-            classified_dict[classify_read(dicts)].append(dicts)
-
-    for key in classified_dict:
-        print(f"{key}:", len(classified_dict[key]))
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    categorize_test(file_target)
