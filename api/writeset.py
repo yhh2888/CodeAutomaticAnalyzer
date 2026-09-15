@@ -1,7 +1,7 @@
 import sys, ast
 from pathlib import Path
 import builtins
-from utils import unwrap_ast
+from utils import unwrap_ast, normalize_called_method, extract_parameter_names
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -11,82 +11,72 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
 
-MUTATION_METHODS = {
-    "append", "remove", "update", "extend",
-    "insert", "pop", "clear",
-    "add", "discard",
-    "put", "setdefault"
-}
-
-SIDE_EFFECT_METHODS = {
-    "addItem", "removeItem", "save_state", "undo",
-    "redo", "remove_connection", "update_path"
-}
-
-def is_w1(node):
-    """
-    W1 = Parameter 객체 수정 (휴리스틱 버전)
-
-    dst.name = ...
-    dst.data["id"] = ...
-    dst.append(...)
-    """
-
+def is_w1(node, parameter_names):
     node = unwrap_ast(node)
 
-    # dst.name = ...
+    # ------------------------
+    # Assign / AugAssign
+    # ------------------------
     if isinstance(node, (ast.Assign, ast.AugAssign)):
         target = node.targets[0] if isinstance(node, ast.Assign) else node.target
 
+        # dst.name = ...
         if (
             isinstance(target, ast.Attribute)
             and isinstance(target.value, ast.Name)
-            and target.value.id != "self"
+            and target.value.id in parameter_names
         ):
             return True
 
         # dst.data["id"] = ...
-        if (
-            isinstance(target, ast.Subscript)
-            and isinstance(target.value, ast.Attribute)
-            and isinstance(target.value.value, ast.Name)
-            and target.value.value.id != "self"
-        ):
-            return True
+        if isinstance(target, ast.Subscript):
+            current = target
+            while isinstance(current, ast.Subscript):
+                current = current.value
 
-    # dst.append(...), dst.remove(...), dst.update(...)
+            if (
+                isinstance(current, ast.Attribute)
+                and isinstance(current.value, ast.Name)
+                and current.value.id in parameter_names
+            ):
+                return True
+
+    # ------------------------
+    # Mutation Method Call
+    # ------------------------
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id != "self"
-        and node.func.attr in MUTATION_METHODS
     ):
-        return True
+        receiver = node.func.value
+
+        # dst.append(...)
+        if (
+            isinstance(receiver, ast.Name)
+            and receiver.id in parameter_names
+        ):
+            return True
+
+        # dst.data["links"].append(...)
+        if isinstance(receiver, ast.Subscript):
+            current = receiver
+            while isinstance(current, ast.Subscript):
+                current = current.value
+
+            if (
+                isinstance(current, ast.Attribute)
+                and isinstance(current.value, ast.Name)
+                and current.value.id in parameter_names
+            ):
+                return True
 
     return False
 
 def is_w2(node):
     node = unwrap_ast(node)
 
-    if isinstance(node, (ast.Assign, ast.AugAssign)):
-        target = node.targets[0] if isinstance(node, ast.Assign) else node.target
-
-        # self.field = ...
-        if (
-            isinstance(target, ast.Attribute)
-            and isinstance(target.value, ast.Name)
-            and target.value.id == "self"
-        ):
-            return True
-
-        # self.data["id"] = ...
-        if (
-            isinstance(target, ast.Subscript)
-            and isinstance(target.value, ast.Attribute)
-            and isinstance(target.value.value, ast.Name)
-            and target.value.value.id == "self"
-        ):
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id == "self":
             return True
 
     return False
@@ -120,7 +110,6 @@ def is_w4(node):
     if isinstance(node, ast.Call):
         if (
             isinstance(node.func, ast.Attribute)
-            and node.func.attr in MUTATION_METHODS
         ):
             return True
 
@@ -132,7 +121,6 @@ def is_w5(node):
     if isinstance(node, ast.Call):
         if (
             isinstance(node.func, ast.Attribute)
-            and node.func.attr in SIDE_EFFECT_METHODS
         ):
             return True
 
@@ -140,11 +128,6 @@ def is_w5(node):
 
 def is_w6(node):
     node = unwrap_ast(node)
-
-    codeInfo = node.split(' ')
-    structInfo = ' '.join(codeInfo[1:])
-
-    STATIC_OBJECTS = register_import(structInfo)
 
     # Qt.UserRole = ...
     if isinstance(node, ast.Assign):
@@ -157,7 +140,6 @@ def is_w6(node):
         ):
             return True
 
-        # GLOBAL_CACHE["id"] = ...
         if (
             isinstance(target, ast.Subscript)
             and isinstance(target.value, ast.Name)
@@ -176,23 +158,35 @@ def is_w6(node):
 
     return False
 
-def classify_write(astForm):
+def classify_write(node, parameter_names):
+    codeInfo = node.split(" ")
+    typeInfo = codeInfo[0].lower()
+    structInfo = normalize_called_method(" ".join(codeInfo[1:]))
+    print('\n', node, structInfo)
 
-    if is_w1(astForm):
+    # Write Set 대상이 아닌 타입
+    if typeInfo in {"functions", "function", "controlflow"}:
+        return "AlienType"
+
+    if typeInfo == "imports":
+        register_import(structInfo)
+        return "AlienType"
+
+    if typeInfo == "return":
+        return "W6"
+
+    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+
+    if is_w1(astForm, parameter_names):
         return "W1"
-
     if is_w2(astForm):
         return "W2"
-
-    if is_w4(astForm):      # W4를 W3보다 먼저
+    if is_w4(astForm):
         return "W4"
-
     if is_w3(astForm):
         return "W3"
-
     if is_w5(astForm):
         return "W5"
-
     if is_w6(astForm):
         return "W6"
 
@@ -223,10 +217,13 @@ def categorize_test(file_target):
 
     classified_dict = {"W1":[], "W2":[], "W3":[], "W4":[], "W5":[], "W6":[], "Not In W":[], "AlienType":[], "is_return":[]}
     
-    for values in analyzer.summary_data.values():
-        for dicts in values:
-            classified_to = classify_write(dicts)
-            classified_dict[classified_to].append(dicts)
+    for scope_name, values in analyzer.summary_data.items():
+
+        parameter_names = extract_parameter_names(values)
+        print(values)
+        for item in values:
+            classified_to = classify_write(item, parameter_names)
+            classified_dict[classified_to].append(item)
             print("type: " + classified_to)
 
     print('\n')
@@ -237,4 +234,5 @@ def categorize_test(file_target):
 
 if __name__ == "__main__":
     file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
     categorize_test(file_target)

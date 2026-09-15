@@ -1,7 +1,7 @@
 import sys, ast, re
 from pathlib import Path
 import builtins
-from utils import unwrap_ast
+from utils import unwrap_ast, normalize_called_method
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -10,23 +10,6 @@ STATIC_OBJECTS = {} # 프로젝트에서 임포트한 클래스/모듈 이름 �
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
-
-def normalize_called_method(s: str) -> str:
-    # 양끝 ' 제거
-    s = s.strip()
-    if len(s) >= 2 and s[0] == "'" and s[-1] == "'":
-        s = s[1:-1]
-
-    # 마지막 '].' 찾기
-    idx = s.rfind("].")
-    if idx == -1:
-        return s
-
-    # '[receiver].method()' 형태인지 확인
-    if s.startswith("["):
-        return s[1:idx] + "." + s[idx + 2:]
-
-    return s
 
 # ast로 보는 걸 elementanatomy와 취합해서 통합해보기 
 # 일반 변수 not In인거 해결하기
@@ -251,6 +234,6 @@ def R1_is_shift():
 if __name__ == "__main__":
     from pprint import pprint
 
-    # file_target = r"E:\autoconstruction\components\NodeEdit.py"
-    file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    # file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
     categorize_test(file_target)
