@@ -1,6 +1,7 @@
 import sys, ast, re
 from pathlib import Path
 import builtins
+from utils import unwrap_ast
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -9,21 +10,6 @@ STATIC_OBJECTS = {} # 프로젝트에서 임포트한 클래스/모듈 이름 �
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
-
-def unwrap_ast(node):
-    # exec: body(list) -> Expr -> 실제 노드
-    if isinstance(node, list):
-        if not node:
-            return None
-        node = node[0]
-
-    if isinstance(node, ast.Expr):
-        node = node.value
-
-    if isinstance(node, ast.Expression):
-        node = node.body
-
-    return node
 
 def normalize_called_method(s: str) -> str:
     # 양끝 ' 제거
@@ -116,16 +102,14 @@ def is_r5(node):
 
 def is_r6(node, imported_functions=None):
     node = unwrap_ast(node)
-    imported_functions = imported_functions or set()
 
-    # Function 'sum()' / Called Method 'sum()'
+    # 모든 일반 함수 호출: sum(), get_new_node_data(), my_func() ...
     if isinstance(node, ast.Call):
+        # func()
         if isinstance(node.func, ast.Name):
-            return (
-                node.func.id in BUILTIN_FUNCTIONS or
-                node.func.id in imported_functions
-            )
+            return True
 
+        # Static/Class 메서드: QInputDialog.getText()
         if (
             isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Name)
@@ -133,7 +117,7 @@ def is_r6(node, imported_functions=None):
         ):
             return True
 
-    # Qt.UserRole
+    # Static 상수: Qt.UserRole
     if (
         isinstance(node, ast.Attribute)
         and isinstance(node.value, ast.Name)
@@ -242,6 +226,8 @@ def categorize_test(file_target):
     for key in classified_dict:
         print(f"{key}:", len(classified_dict[key]))
 
+
+
 """
 Rn - 자동화 시 수행 작업
 
@@ -265,5 +251,6 @@ def R1_is_shift():
 if __name__ == "__main__":
     from pprint import pprint
 
-    file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    # file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
     categorize_test(file_target)
