@@ -72,60 +72,6 @@ def is_w1(node, parameter_names):
 
     return False
 
-def is_w2(node):
-    node = unwrap_ast(node)
-
-    for child in ast.walk(node):
-        if isinstance(child, ast.Name) and child.id == "self":
-            return True
-
-    return False
-
-def is_w3(node):
-    node = unwrap_ast(node)
-
-    if isinstance(node, (ast.Assign, ast.AugAssign)):
-        target = node.targets[0] if isinstance(node, ast.Assign) else node.target
-
-        if (
-            isinstance(target, ast.Attribute)
-            and isinstance(target.value, ast.Name)
-            and target.value.id != "self"
-        ):
-            return True
-
-    return False
-
-def is_w4(node):
-    node = unwrap_ast(node)
-
-    # data["id"] = ...
-    if isinstance(node, (ast.Assign, ast.AugAssign)):
-        target = node.targets[0] if isinstance(node, ast.Assign) else node.target
-
-        if isinstance(target, ast.Subscript):
-            return True
-
-    # append(), remove(), update() ...
-    if isinstance(node, ast.Call):
-        if (
-            isinstance(node.func, ast.Attribute)
-        ):
-            return True
-
-    return False
-
-def is_w5(node):
-    node = unwrap_ast(node)
-
-    if isinstance(node, ast.Call):
-        if (
-            isinstance(node.func, ast.Attribute)
-        ):
-            return True
-
-    return False
-
 def is_w6(node):
     node = unwrap_ast(node)
 
@@ -162,7 +108,7 @@ def classify_write(node, parameter_names):
     codeInfo = node.split(" ")
     typeInfo = codeInfo[0].lower()
     structInfo = normalize_called_method(" ".join(codeInfo[1:]))
-    print('\n', node, structInfo)
+    # print('\n', node, structInfo)
 
     # Write Set 대상이 아닌 타입
     if typeInfo in {"functions", "function", "controlflow"}:
@@ -179,14 +125,6 @@ def classify_write(node, parameter_names):
 
     if is_w1(astForm, parameter_names):
         return "W1"
-    if is_w2(astForm):
-        return "W2"
-    if is_w4(astForm):
-        return "W4"
-    if is_w3(astForm):
-        return "W3"
-    if is_w5(astForm):
-        return "W5"
     if is_w6(astForm):
         return "W6"
 
@@ -212,7 +150,7 @@ def register_import(structInfo):
 
     return STATIC_OBJECTS
 
-def categorize_test(file_target):
+def writeSetCategorizeTest(file_target):
     analyzer = ModuleCodeAnalyzer(file_target)
 
     classified_dict = {"W1":[], "W2":[], "W3":[], "W4":[], "W5":[], "W6":[], "Not In W":[], "AlienType":[], "is_return":[]}
@@ -224,15 +162,17 @@ def categorize_test(file_target):
         for item in values:
             classified_to = classify_write(item, parameter_names)
             classified_dict[classified_to].append(item)
-            print("type: " + classified_to)
+            # print("type: " + classified_to)
 
     print('\n')
 
     for key in classified_dict:
         print(f"{key}:", len(classified_dict[key]))
 
+    return classified_dict
+
 
 if __name__ == "__main__":
     file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
-    categorize_test(file_target)
+    writeSetCategorizeTest(file_target)

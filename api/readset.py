@@ -5,14 +5,13 @@ from utils import unwrap_ast, normalize_called_method
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
-STATIC_OBJECTS = {} # 프로젝트에서 임포트한 클래스/모듈 이름 임시변수
+STATIC_OBJECTS = {}
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
 
-# ast로 보는 걸 elementanatomy와 취합해서 통합해보기 
-# 일반 변수 not In인거 해결하기
+
 
 def extract_nested_data(node):
     node = unwrap_ast(node)
@@ -115,7 +114,7 @@ def classify_read(node):
     typeInfo = codeInfo[0]
     structInfo = ' '.join(codeInfo[1:])
     structInfo = normalize_called_method(structInfo)
-    print('\n', node, structInfo)
+    # print('\n', node)
 
 
     if typeInfo in ['controlFlow', 'imports', 'functions']:
@@ -173,7 +172,6 @@ def is_nested_data(structInfo):
     astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
     return extract_nested_data(astForm) is not None
 
-
 def is_object_method(structInfo):
     astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
     return is_r5(astForm)
@@ -193,21 +191,30 @@ def is_return(node):
 
     return isinstance(node, ast.Return)
 
-def categorize_test(file_target):
+def readSetCategorizeTest(file_target):
     analyzer = ModuleCodeAnalyzer(file_target)
 
     classified_dict = {"R1":[], "R2":[], "R3":[], "R4":[], "R5":[], "R6":[], "Not In R":[], "AlienType":[], "is_return":[]}
+
+    classify_meaning = {"R1": "parameter", 
+                        "R2":"refer self", 
+                        "R3":"outer field", 
+                        "R4":"Data Access", 
+                        "R5":"outer method", 
+                        "R6":"static"}
     
     for values in analyzer.summary_data.values():
         for dicts in values:
             classified_to = classify_read(dicts)
             classified_dict[classified_to].append(dicts)
-            print("type: " + classified_to)
+            print("type: " + classified_to + ' ' + [classify_meaning[classified_to] if classified_to in classify_meaning else " "][0])
 
     print('\n')
 
     for key in classified_dict:
         print(f"{key}:", len(classified_dict[key]))
+
+    return classified_dict
 
 
 
@@ -236,4 +243,4 @@ if __name__ == "__main__":
 
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
     # file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
-    categorize_test(file_target)
+    readSetCategorizeTest(file_target)
