@@ -1,7 +1,11 @@
 import sys, ast
 from pathlib import Path
 import builtins
-from utils import unwrap_ast, normalize_called_method, extract_parameter_names
+
+try:
+    from .utils import unwrap_ast, normalize_called_method, extract_parameter_names
+except ImportError:
+    from utils import unwrap_ast, normalize_called_method, extract_parameter_names
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -160,8 +164,12 @@ def writeSetCategorizeTest(file_target):
         parameter_names = extract_parameter_names(values)
         print(values)
         for item in values:
+            codeInfo = item.split(' ')
+            typeInfo = codeInfo[0]
+            structInfo = ' '.join(codeInfo[1:])
+            structInfo = normalize_called_method(" ".join(codeInfo[1:]))
             classified_to = classify_write(item, parameter_names)
-            classified_dict[classified_to].append(item)
+            classified_dict[classified_to].append([typeInfo, structInfo])
             # print("type: " + classified_to)
 
     print('\n')
@@ -175,4 +183,5 @@ def writeSetCategorizeTest(file_target):
 if __name__ == "__main__":
     file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
-    writeSetCategorizeTest(file_target)
+    from pprint import pprint
+    pprint(writeSetCategorizeTest(file_target))

@@ -1,7 +1,11 @@
 import sys, ast, re
 from pathlib import Path
 import builtins
-from utils import unwrap_ast, normalize_called_method
+
+try:
+    from .utils import unwrap_ast, normalize_called_method
+except ImportError:
+    from utils import unwrap_ast, normalize_called_method
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -205,8 +209,12 @@ def readSetCategorizeTest(file_target):
     
     for values in analyzer.summary_data.values():
         for dicts in values:
+            codeInfo = dicts.split(' ')
+            typeInfo = codeInfo[0]
+            structInfo = ' '.join(codeInfo[1:])
+            structInfo = normalize_called_method(" ".join(codeInfo[1:]))
             classified_to = classify_read(dicts)
-            classified_dict[classified_to].append(dicts)
+            classified_dict[classified_to].append([typeInfo, structInfo])
             print("type: " + classified_to + ' ' + [classify_meaning[classified_to] if classified_to in classify_meaning else " "][0])
 
     print('\n')
