@@ -289,7 +289,7 @@ if __name__ == "__main__":
     exporter = FuncExport(target_directory)
 
     # 1. 일반 심볼 이름으로 검색
-    report = exporter.analyze_element("get_data")
+    report = exporter.analyze_element("bulk_add_nodes")
     pprint.pprint(report)
 
     # 2. 특정 파일:라인 주소 형태로 검색 (예시)

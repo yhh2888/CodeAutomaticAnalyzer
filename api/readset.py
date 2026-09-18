@@ -113,6 +113,36 @@ def is_r6(node, imported_functions=None):
 
     return False
 
+def _safe_parse_expression(structInfo):
+    if not isinstance(structInfo, str):
+        return None
+
+    text = structInfo.strip()
+    if not text:
+        return None
+
+    statement_prefixes = (
+        "except ", "finally:", "try:", "with ", "for ", "if ", "while ",
+        "return ", "raise ", "yield ", "assert ", "import ", "from ",
+        "class ", "def ", "match ", "case ", "lambda ", "await "
+    )
+    if text.startswith(statement_prefixes):
+        return None
+
+    try:
+        return unwrap_ast(ast.parse(text, mode="eval"))
+    except SyntaxError:
+        pass
+
+    try:
+        parsed = ast.parse(text, mode="exec")
+        if len(parsed.body) == 1 and isinstance(parsed.body[0], ast.Expr):
+            return unwrap_ast(parsed.body[0])
+        return None
+    except SyntaxError:
+        return None
+
+
 def classify_read(node):
     codeInfo = node.split(' ')
     typeInfo = codeInfo[0]
@@ -154,7 +184,9 @@ def is_parameter(typeInfo):
         return False
 
 def is_self_reference(structInfo):
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    astForm = _safe_parse_expression(structInfo)
+    if astForm is None:
+        return False
 
     if isinstance(astForm, ast.Attribute):
         return (
@@ -172,23 +204,25 @@ def is_self_reference(structInfo):
 
     return False
 
+
 def is_nested_data(structInfo):
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
-    return extract_nested_data(astForm) is not None
+    astForm = _safe_parse_expression(structInfo)
+    return astForm is not None and extract_nested_data(astForm) is not None
+
 
 def is_object_method(structInfo):
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
-    return is_r5(astForm)
+    astForm = _safe_parse_expression(structInfo)
+    return astForm is not None and is_r5(astForm)
 
 
 def is_object_field(structInfo):
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
-    return is_r3(astForm)
+    astForm = _safe_parse_expression(structInfo)
+    return astForm is not None and is_r3(astForm)
 
 
 def is_global_or_static(structInfo):
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
-    return is_r6(astForm)
+    astForm = _safe_parse_expression(structInfo)
+    return astForm is not None and is_r6(astForm)
 
 def is_return(node):
     node = unwrap_ast(node)

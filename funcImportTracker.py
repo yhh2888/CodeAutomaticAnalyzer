@@ -427,7 +427,7 @@ class ImportTracker:
 if __name__ == "__main__":
     # 1. 탐색할 루트 디렉토리
     target_directory = r"E:\autoconstruction"
-    file_target = r"E:\autoconstruction\ui\Visual.py"
+    file_target = r"E:\autoconstruction\components\NodeEdit.py"
     tracker = ImportTracker(target_directory)
 
     # (선택 사항) 대상 디렉토리의 모든 파이썬 파일 출력

@@ -15,6 +15,36 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from funcElementAnatomy import *
 
+def _safe_parse_expression(text):
+    if not isinstance(text, str):
+        return None
+
+    text = text.strip()
+    if not text:
+        return None
+
+    statement_prefixes = (
+        "except ", "finally:", "try:", "with ", "for ", "if ", "while ",
+        "return ", "raise ", "yield ", "assert ", "import ", "from ",
+        "class ", "def ", "match ", "case ", "lambda ", "await "
+    )
+    if text.startswith(statement_prefixes):
+        return None
+
+    try:
+        return unwrap_ast(ast.parse(text, mode="eval"))
+    except SyntaxError:
+        pass
+
+    try:
+        parsed = ast.parse(text, mode="exec")
+        if len(parsed.body) == 1 and isinstance(parsed.body[0], ast.Expr):
+            return unwrap_ast(parsed.body[0])
+        return None
+    except SyntaxError:
+        return None
+
+
 def is_w1(node, parameter_names):
     node = unwrap_ast(node)
 
@@ -125,7 +155,9 @@ def classify_write(node, parameter_names):
     if typeInfo == "return":
         return "W6"
 
-    astForm = unwrap_ast(ast.parse(structInfo, mode="exec").body)
+    astForm = _safe_parse_expression(structInfo)
+    if astForm is None:
+        return "Not In W"
 
     if is_w1(astForm, parameter_names):
         return "W1"
