@@ -334,7 +334,7 @@ class FuncInfluenceAnalyzer:
         print("================================================================================")
 
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    file_target = r"E:\autoconstruction\components\NodeBlock.py"
 
     # 1. 이전 analyzer 실행
     analyzer = ModuleCodeAnalyzer(file_target)

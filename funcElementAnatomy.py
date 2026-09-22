@@ -495,7 +495,9 @@ if __name__ == "__main__":
 
     from pprint import pprint 
 
-    for values in analyzer.summary_data.values():
-        for key, units in values.items():
-            pprint(f"key : {key}")
-            pprint(f"units : {units}")
+    # for values in analyzer.summary_data.values():
+    #     for key, units in values.items():
+    #         pprint(f"key : {key}")
+    #         pprint(f"units : {units}")
+
+    analyzer.scope_centric_summary()

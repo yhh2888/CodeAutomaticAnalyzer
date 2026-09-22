@@ -39,8 +39,10 @@ class FuncRefactor:
                 while parent is not None:
                     if isinstance(parent, ast.ClassDef):
                         return parent.name
+                    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        return parent.name
                     parent = getattr(parent, "parent", None)
-                return None
+                return "module"
         return None
 
     def _find_function_scope(self, analyzer, func_name):
@@ -140,9 +142,10 @@ class FuncRefactor:
 
         R2 = [parameter[1] for parameter in self.refactorSet[0]['R2']]
         # 다른 객체, 같은 메소드명을 구별할 수 있어야 함.
-        R2Syntax = '\n    new_self_class = ' + self.objectName + \
-                    ''.join(['\n    # ' + param for param in R2])
-        print(R2Syntax)
+        if self.objectName and self.objectName != "module":
+            R2Syntax = '\n    new_self_class = ' + self.objectName + \
+                        ''.join(['\n    # ' + param for param in R2])
+            print(R2Syntax)
 
         R3 = [parameter[1] for parameter in self.refactorSet[0]['R3']]
         R3Syntax = '\n    # variables' + \
@@ -170,5 +173,5 @@ if __name__ == "__main__":
 
     file_target = r"E:\autoconstruction\components\NodeBlock.py"
     refactor = FuncRefactor()
-    pprint(refactor.selectFunc("apply_update_from_box", file_target))
+    refactor.selectFunc("apply_update_from_box", file_target)
     refactor.docMaker()
