@@ -3,9 +3,9 @@ import sys
 from pathlib import Path
 
 try:
-    from api.utils import normalize_called_method
+    from api.utils import normalize_called_method, find_class_of_function
 except ImportError:
-    from utils import normalize_called_method
+    from utils import normalize_called_method, find_class_of_function
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 API_DIR = Path(__file__).resolve().parent
@@ -29,37 +29,59 @@ class FuncRefactor:
     def __init__(self):
         self.file_target = None
         self.selectedFunc = None
+        self.className = None
         self.objectName = None
         self.refactorSet = []
 
-    def _find_function_object_name(self, analyzer, func_name):
+    def _find_function_object_name(self, analyzer, func_name, class_name=None):
         for node in ast.walk(analyzer.tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
                 parent = getattr(node, "parent", None)
                 while parent is not None:
                     if isinstance(parent, ast.ClassDef):
-                        return parent.name
+                        if class_name is None or parent.name == class_name:
+                            return parent.name
+                        break
                     if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        return parent.name
+                        if class_name is None:
+                            return parent.name
+                        break
                     parent = getattr(parent, "parent", None)
+                if class_name is not None:
+                    continue
                 return "module"
         return None
 
-    def _find_function_scope(self, analyzer, func_name):
+    def _find_function_scope(self, analyzer, func_name, class_name=None):
         for node in ast.walk(analyzer.tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
-                return analyzer._get_node_scope(node, include_self=True)
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name != func_name:
+                continue
+
+            if class_name is not None:
+                parent = getattr(node, "parent", None)
+                matched_class = False
+                while parent is not None:
+                    if isinstance(parent, ast.ClassDef):
+                        matched_class = parent.name == class_name
+                        break
+                    parent = getattr(parent, "parent", None)
+                if not matched_class:
+                    continue
+
+            return analyzer._get_node_scope(node, include_self=True)
         return None
 
-    def _categorize_function_only(self, file_target, func_name):
+    def _categorize_function_only(self, file_target, func_name, class_name=None):
         from funcElementAnatomy import ModuleCodeAnalyzer
 
         analyzer = ModuleCodeAnalyzer(file_target)
-        func_scope = self._find_function_scope(analyzer, func_name)
+        func_scope = self._find_function_scope(analyzer, func_name, class_name)
         if not func_scope:
             raise ValueError(f"Function '{func_name}' was not found in {file_target}")
 
-        self.objectName = self._find_function_object_name(analyzer, func_name)
+        self.objectName = self._find_function_object_name(analyzer, func_name, class_name)
 
         selected_items = analyzer.summary_data.get(func_scope, {})
         parameter_names = set()
@@ -89,14 +111,15 @@ class FuncRefactor:
 
         return readSet, writeSet
 
-    def getRefactorSet(self, file_target, func_name=None):
+    def getRefactorSet(self, file_target, func_name=None, class_name=None):
         self.file_target = str(Path(file_target).resolve())
         self.objectName = None
+        self.className = class_name
         if func_name is not None:
             self.selectedFunc = func_name
 
         if self.selectedFunc:
-            readSet, writeSet = self._categorize_function_only(self.file_target, self.selectedFunc)
+            readSet, writeSet = self._categorize_function_only(self.file_target, self.selectedFunc, self.className)
         else:
             readSet = readSetCategorizeTest(self.file_target)
             writeSet = writeSetCategorizeTest(self.file_target)
@@ -107,7 +130,7 @@ class FuncRefactor:
         self.refactorSet = [readSet, writeSet]
         return self.refactorSet
 
-    def selectFunc(self, func_name, file_target=None):
+    def selectFunc(self, func_name, file_target=None, class_name=None):
         if file_target is None:
             file_target = self.file_target
         if not file_target:
@@ -115,11 +138,13 @@ class FuncRefactor:
 
         self.file_target = str(Path(file_target).resolve())
         self.selectedFunc = func_name
+        self.className = class_name
         self.objectName = None
-        self.getRefactorSet(self.file_target, self.selectedFunc)
+        self.getRefactorSet(self.file_target, self.selectedFunc, self.className)
 
         return {
             "selectedFunc": self.selectedFunc,
+            "className": self.className,
             "objectName": self.objectName,
             "file_target": self.file_target,
             "refactorSet": self.refactorSet,
@@ -173,5 +198,5 @@ if __name__ == "__main__":
 
     file_target = r"E:\autoconstruction\components\NodeBlock.py"
     refactor = FuncRefactor()
-    refactor.selectFunc("apply_update_from_box", file_target)
+    refactor.selectFunc("itemChange", file_target)
     refactor.docMaker()

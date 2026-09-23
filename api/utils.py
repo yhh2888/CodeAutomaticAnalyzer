@@ -42,3 +42,13 @@ def extract_parameter_names(values):
                 params.add(name)
 
     return params
+
+def find_class_of_function(func_node):
+    parent = getattr(func_node, "parent", None)
+
+    while parent is not None:
+        if isinstance(parent, ast.ClassDef):
+            return parent.name
+        parent = getattr(parent, "parent", None)
+
+    return None
