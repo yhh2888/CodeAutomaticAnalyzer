@@ -3,9 +3,9 @@ from pathlib import Path
 import builtins
 
 try:
-    from .utils import unwrap_ast, normalize_called_method, extract_parameter_names
+    from .utils import unwrap_ast, normalize_called_method, extract_parameter_names, select_function
 except ImportError:
-    from utils import unwrap_ast, normalize_called_method, extract_parameter_names
+    from utils import unwrap_ast, normalize_called_method, extract_parameter_names, select_function
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -186,12 +186,19 @@ def register_import(structInfo):
 
     return STATIC_OBJECTS
 
-def writeSetCategorizeTest(file_target):
+def writeSetCategorizeTest(file_target, func_name=None, class_name=None):
     analyzer = ModuleCodeAnalyzer(file_target)
+
+    if func_name is None:
+        scopes = analyzer.summary_data.items()
+    else:
+        selection = select_function(analyzer.tree, func_name, class_name)
+        scope = selection["scope"]
+        scopes = [(scope, analyzer.summary_data[scope])]
 
     classified_dict = {"W1":[], "W2":[], "W3":[], "W4":[], "W5":[], "W6":[], "Not In W":[], "AlienType":[], "is_return":[]}
     
-    for scope_name, values in analyzer.summary_data.items():
+    for scope_name, values in scopes:
 
         parameter_names = extract_parameter_names(values)
         print(values)
@@ -215,5 +222,7 @@ def writeSetCategorizeTest(file_target):
 if __name__ == "__main__":
     file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    selected_func_name = None
+    selected_class_name = None
     from pprint import pprint
-    pprint(writeSetCategorizeTest(file_target))
+    pprint(writeSetCategorizeTest(file_target, selected_func_name, selected_class_name))

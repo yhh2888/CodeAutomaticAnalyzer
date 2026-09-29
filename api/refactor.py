@@ -1,11 +1,10 @@
-import ast
 import sys
 from pathlib import Path
 
 try:
-    from api.utils import normalize_called_method, find_class_of_function
+    from api.utils import normalize_called_method, select_function
 except ImportError:
-    from utils import normalize_called_method, find_class_of_function
+    from utils import normalize_called_method, select_function
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 API_DIR = Path(__file__).resolve().parent
@@ -33,55 +32,13 @@ class FuncRefactor:
         self.objectName = None
         self.refactorSet = []
 
-    def _find_function_object_name(self, analyzer, func_name, class_name=None):
-        for node in ast.walk(analyzer.tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
-                parent = getattr(node, "parent", None)
-                while parent is not None:
-                    if isinstance(parent, ast.ClassDef):
-                        if class_name is None or parent.name == class_name:
-                            return parent.name
-                        break
-                    if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                        if class_name is None:
-                            return parent.name
-                        break
-                    parent = getattr(parent, "parent", None)
-                if class_name is not None:
-                    continue
-                return "module"
-        return None
-
-    def _find_function_scope(self, analyzer, func_name, class_name=None):
-        for node in ast.walk(analyzer.tree):
-            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                continue
-            if node.name != func_name:
-                continue
-
-            if class_name is not None:
-                parent = getattr(node, "parent", None)
-                matched_class = False
-                while parent is not None:
-                    if isinstance(parent, ast.ClassDef):
-                        matched_class = parent.name == class_name
-                        break
-                    parent = getattr(parent, "parent", None)
-                if not matched_class:
-                    continue
-
-            return analyzer._get_node_scope(node, include_self=True)
-        return None
-
     def _categorize_function_only(self, file_target, func_name, class_name=None):
         from funcElementAnatomy import ModuleCodeAnalyzer
 
         analyzer = ModuleCodeAnalyzer(file_target)
-        func_scope = self._find_function_scope(analyzer, func_name, class_name)
-        if not func_scope:
-            raise ValueError(f"Function '{func_name}' was not found in {file_target}")
-
-        self.objectName = self._find_function_object_name(analyzer, func_name, class_name)
+        selection = select_function(analyzer.tree, func_name, class_name)
+        func_scope = selection["scope"]
+        self.objectName = selection["object_name"]
 
         selected_items = analyzer.summary_data.get(func_scope, {})
         parameter_names = set()
@@ -197,6 +154,8 @@ if __name__ == "__main__":
     from pprint import pprint
 
     file_target = r"E:\autoconstruction\components\NodeBlock.py"
+    selected_func_name = "itemChange"
+    selected_class_name = "FunctionalBox"
     refactor = FuncRefactor()
-    refactor.selectFunc("itemChange", file_target)
+    refactor.selectFunc(selected_func_name, file_target, selected_class_name)
     refactor.docMaker()

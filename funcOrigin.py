@@ -2,6 +2,7 @@ import ast, os
 from collections import defaultdict
 
 from funcElementAnatomy import ModuleCodeAnalyzer
+from api.utils import select_function
 
 
 class FuncOrigin:
@@ -9,11 +10,30 @@ class FuncOrigin:
     ModuleCodeAnalyzer(FuncElementAnatomy)의 수집 데이터를 받아서
     요소별(Import, 클래스, 함수, 변수, 호출 메서드 등) 최초 생성/정의 출처(Origin)를 추적하는 모듈
     """
-    def __init__(self, analyzer: ModuleCodeAnalyzer):
+    def __init__(self, analyzer: ModuleCodeAnalyzer, func_name=None, class_name=None):
         self.analyzer = analyzer
         self.file_path = analyzer.file_path
         self.tree = analyzer.tree
-        self.element_data = analyzer.get_element_data()
+        if func_name is None:
+            self.element_data = analyzer.get_element_data()
+        else:
+            selection = select_function(self.tree, func_name, class_name)
+            selected_scope = selection["scope"]
+            self.element_data = {
+                category: {
+                    item_name: [
+                        (line, scope)
+                        for line, scope in occurrences
+                        if scope == selected_scope or scope.startswith(selected_scope + ".")
+                    ]
+                    for item_name, occurrences in items.items()
+                    if any(
+                        scope == selected_scope or scope.startswith(selected_scope + ".")
+                        for _, scope in occurrences
+                    )
+                }
+                for category, items in analyzer.get_element_data().items()
+            }
         
         # { Category: { ElementName: OriginInfo } }
         self.categorized_origins = defaultdict(dict)
@@ -148,13 +168,17 @@ class FuncOrigin:
 # ==========================================
 if __name__ == "__main__":
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    selected_func_name = None
+    selected_class_name = None
     #file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
     
     # 1. FuncElementAnatomy 분석 진행
     anatomy_analyzer = ModuleCodeAnalyzer(file_target)
     
     # 2. FuncOrigin에 anatomy 분석 결과 객체를 넘겨 연동 실행
-    origin_analyzer = FuncOrigin(anatomy_analyzer)
+    origin_analyzer = FuncOrigin(
+        anatomy_analyzer, selected_func_name, selected_class_name
+    )
     
     # 3. 출처 요약 출력
     origin_analyzer.print_origin_summary()

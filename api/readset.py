@@ -3,9 +3,9 @@ from pathlib import Path
 import builtins
 
 try:
-    from .utils import unwrap_ast, normalize_called_method
+    from .utils import unwrap_ast, normalize_called_method, select_function
 except ImportError:
-    from utils import unwrap_ast, normalize_called_method
+    from utils import unwrap_ast, normalize_called_method, select_function
 
 BUILTIN_FUNCTIONS = set(dir(builtins))
 
@@ -229,8 +229,14 @@ def is_return(node):
 
     return isinstance(node, ast.Return)
 
-def readSetCategorizeTest(file_target):
+def readSetCategorizeTest(file_target, func_name=None, class_name=None):
     analyzer = ModuleCodeAnalyzer(file_target)
+
+    if func_name is None:
+        scopes = analyzer.summary_data.values()
+    else:
+        selection = select_function(analyzer.tree, func_name, class_name)
+        scopes = [analyzer.summary_data[selection["scope"]]]
 
     classified_dict = {"R1":[], "R2":[], "R3":[], "R4":[], "R5":[], "R6":[], "Not In R":[], "AlienType":[], "is_return":[]}
 
@@ -241,7 +247,7 @@ def readSetCategorizeTest(file_target):
                         "R5":"outer method", 
                         "R6":"static"}
     
-    for values in analyzer.summary_data.values():
+    for values in scopes:
         for dicts in values:
             codeInfo = dicts.split(' ')
             typeInfo = codeInfo[0]
@@ -284,5 +290,7 @@ if __name__ == "__main__":
     from pprint import pprint
 
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    selected_func_name = None
+    selected_class_name = None
     # file_target = r"C:\Users\hyunhoyang\Desktop\yhh\python\pjt\autoconstruction\components\NodeEdit.py"
-    readSetCategorizeTest(file_target)
+    readSetCategorizeTest(file_target, selected_func_name, selected_class_name)

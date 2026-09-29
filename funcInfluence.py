@@ -5,6 +5,7 @@ from collections import defaultdict
 
 # 사용자 모듈 import (실제 환경에 맞게 경로/이름 유지)
 from funcElementAnatomy import ModuleCodeAnalyzer
+from api.utils import select_function
 
 
 class FuncInfluenceAnalyzer:
@@ -26,8 +27,10 @@ class FuncInfluenceAnalyzer:
     # I/O 및 시스템 영향을 주는 대표 함수/메서드
     IO_FUNCTIONS = {'print', 'write', 'writelines', 'open', 'exit', 'close'}
 
-    def __init__(self, tree: ast.AST):
+    def __init__(self, tree: ast.AST, func_name=None, class_name=None):
         self.tree = tree
+        self.func_name = func_name
+        self.class_name = class_name
         self.influence_data = defaultdict(lambda: {
             # --- 1. 파라미터 상태 요약 ---
             "params_summary": {},            # 파라미터별 최종 상태 (Mutated vs Rebound vs Pure)
@@ -52,9 +55,18 @@ class FuncInfluenceAnalyzer:
         if not self.tree:
             return self.influence_data
 
-        for node in ast.walk(self.tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self._analyze_function(node)
+        if self.func_name is not None:
+            function_nodes = [
+                select_function(self.tree, self.func_name, self.class_name)["node"]
+            ]
+        else:
+            function_nodes = [
+                node for node in ast.walk(self.tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            ]
+
+        for node in function_nodes:
+            self._analyze_function(node)
 
         return self.influence_data
 
@@ -335,12 +347,16 @@ class FuncInfluenceAnalyzer:
 
 if __name__ == "__main__":
     file_target = r"E:\autoconstruction\components\NodeBlock.py"
+    selected_func_name = "update_properties"
+    selected_class_name = "VisualNode"
 
     # 1. 이전 analyzer 실행
     analyzer = ModuleCodeAnalyzer(file_target)
 
     # 2. FuncInfluence 모듈 연결 실행
     if analyzer.tree:
-        influence_analyzer = FuncInfluenceAnalyzer(analyzer.tree)
+        influence_analyzer = FuncInfluenceAnalyzer(
+            analyzer.tree, selected_func_name, selected_class_name
+        )
         influence_analyzer.analyze()
         influence_analyzer.print_influence_summary()

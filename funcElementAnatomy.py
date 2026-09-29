@@ -2,6 +2,8 @@ import ast
 from collections import Counter, defaultdict
 import os
 
+from api.utils import select_function
+
 
 class ModuleCodeAnalyzer:
     """.py 파일 전체를 읽어 요소별 위치 추적 및 라인별 해부(every_line_view),
@@ -88,6 +90,14 @@ class ModuleCodeAnalyzer:
     def get_element_data(self):
         """요소 중심 분석 데이터를 외부 모듈에 제공"""
         return self.element_data
+
+    def get_function_summary(self, func_name: str, class_name: str = None) -> dict:
+        """Return scope-centric analysis data for one function or method."""
+        selection = select_function(self.tree, func_name, class_name)
+        return {
+            item_name: list(lines)
+            for item_name, lines in self.summary_data[selection["scope"]].items()
+        }
 
     def _record_element(
         self, category: str, item_name: str, lineno: int, scope: str
@@ -488,6 +498,8 @@ class ModuleCodeAnalyzer:
 
 if __name__ == "__main__":
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    selected_func_name = None
+    selected_class_name = None
     # file_target = r"C:\Users\DW\Desktop\funcAnalysis\funcImportTracker.py"
 
     analyzer = ModuleCodeAnalyzer(file_target)
@@ -500,4 +512,7 @@ if __name__ == "__main__":
     #         pprint(f"key : {key}")
     #         pprint(f"units : {units}")
 
-    analyzer.scope_centric_summary()
+    if selected_func_name:
+        pprint(analyzer.get_function_summary(selected_func_name, selected_class_name))
+    else:
+        analyzer.scope_centric_summary()

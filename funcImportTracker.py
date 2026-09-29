@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import filedialog
 
 from funcElementAnatomy import ModuleCodeAnalyzer
+from api.utils import select_function
 
 
 class ImportTracker:
@@ -428,7 +429,19 @@ if __name__ == "__main__":
     # 1. 탐색할 루트 디렉토리
     target_directory = r"E:\autoconstruction"
     file_target = r"E:\autoconstruction\components\NodeEdit.py"
+    selected_func_name = None
+    selected_class_name = None
     tracker = ImportTracker(target_directory)
+    analyzer = ModuleCodeAnalyzer(file_target)
+
+    target_elements = None
+    if selected_func_name:
+        selection = select_function(
+            analyzer.tree, selected_func_name, selected_class_name
+        )
+        target_elements = [selected_func_name]
+        if selection["class_name"]:
+            target_elements.append(selection["class_name"])
 
     # (선택 사항) 대상 디렉토리의 모든 파이썬 파일 출력
     # tracker.print_all_py_files()
@@ -436,12 +449,13 @@ if __name__ == "__main__":
     # 2. 추적할 모듈명 및 내부 요소를 지정
     # 예: 'Edit' 모듈 내부의 'ModuleCodeAnalyzer', 'update_settings' 요소 추적
     a = tracker.track_element_imports(
-        target_module_name=file_target)
+        target_module_name=Path(file_target).stem,
+        target_elements=target_elements,
+    )
     
     # 3. 결과 요약 출력
     tracker.print_import_summary()
 
-    analyzer = ModuleCodeAnalyzer(file_target)
     print(dict(tracker.usage_map.items()), analyzer.get_structure())
     # tracker.export_channel(method='json')
 

@@ -3,7 +3,8 @@ import os
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QFileDialog, QTabWidget, QTreeWidget, QTreeWidgetItem,
-    QTableWidget, QTableWidgetItem, QHeaderView, QLabel, QSplitter, QTextEdit
+    QTableWidget, QTableWidgetItem, QHeaderView, QLabel, QSplitter, QTextEdit,
+    QLineEdit,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor
@@ -12,6 +13,7 @@ from PyQt5.QtGui import QFont, QColor
 from funcElementAnatomy import ModuleCodeAnalyzer
 from funcOrigin import FuncOrigin  # 파일명에 맞춰 변경해주세요
 from funcInfluence import FuncInfluenceAnalyzer  # 파일명에 맞춰 변경해주세요
+from api.utils import select_function
 
 
 class CodeAnalysisDashboard(QMainWindow):
@@ -34,6 +36,11 @@ class CodeAnalysisDashboard(QMainWindow):
         top_bar = QHBoxLayout()
         self.lbl_file = QLabel("📁 분석할 파일: 선택되지 않음")
         self.lbl_file.setFont(QFont("Malgun Gothic", 10, QFont.Bold))
+
+        self.input_function = QLineEdit()
+        self.input_function.setPlaceholderText("함수명 (선택)")
+        self.input_class = QLineEdit()
+        self.input_class.setPlaceholderText("클래스명 (선택)")
         
         btn_open = QPushButton("파일 열기 (.py)")
         btn_open.clicked.connect(self.open_file)
@@ -43,6 +50,8 @@ class CodeAnalysisDashboard(QMainWindow):
         btn_run.clicked.connect(self.run_analysis)
 
         top_bar.addWidget(self.lbl_file, stretch=1)
+        top_bar.addWidget(self.input_function)
+        top_bar.addWidget(self.input_class)
         top_bar.addWidget(btn_open)
         top_bar.addWidget(btn_run)
         main_layout.addLayout(top_bar)
@@ -132,15 +141,31 @@ class CodeAnalysisDashboard(QMainWindow):
 
         # 1. 모듈 객체 생성 및 분석 실행
         anatomy_analyzer = ModuleCodeAnalyzer(self.file_path)
-        origin_analyzer = FuncOrigin(anatomy_analyzer)
+        func_name = self.input_function.text().strip() or None
+        class_name = self.input_class.text().strip() or None
+        if class_name and not func_name:
+            self.lbl_file.setText("클래스명을 지정하려면 함수명도 입력해주세요.")
+            return
+
+        selection = None
+        if func_name:
+            try:
+                selection = select_function(anatomy_analyzer.tree, func_name, class_name)
+            except ValueError as error:
+                self.lbl_file.setText(str(error))
+                return
+
+        origin_analyzer = FuncOrigin(anatomy_analyzer, func_name, class_name)
         
         influence_analyzer = None
         if anatomy_analyzer.tree:
-            influence_analyzer = FuncInfluenceAnalyzer(anatomy_analyzer.tree)
+            influence_analyzer = FuncInfluenceAnalyzer(
+                anatomy_analyzer.tree, func_name, class_name
+            )
             influence_analyzer.analyze()
 
         # 2. UI 데이터 업데이트
-        self.populate_anatomy_tab(anatomy_analyzer)
+        self.populate_anatomy_tab(anatomy_analyzer, selection)
         self.populate_origin_tab(origin_analyzer)
         if influence_analyzer:
             self.populate_influence_tab(influence_analyzer)
@@ -148,16 +173,37 @@ class CodeAnalysisDashboard(QMainWindow):
     # -----------------------------------------------------------------
     # UI Population 1: Module Anatomy
     # -----------------------------------------------------------------
-    def populate_anatomy_tab(self, analyzer: ModuleCodeAnalyzer):
+    def populate_anatomy_tab(self, analyzer: ModuleCodeAnalyzer, selection=None):
         self.tree_anatomy.clear()
+        selected_scope = selection["scope"] if selection else None
+
+        def matches_selection(scope):
+            return (
+                selected_scope is None
+                or scope == selected_scope
+                or scope.startswith(selected_scope + ".")
+            )
         
         # 1-A. Element Centric Tree
         root_element = QTreeWidgetItem(self.tree_anatomy, ["📌 [Element Centric Summary]"])
         for category, item_dict in analyzer.element_data.items():
-            cat_node = QTreeWidgetItem(root_element, [f"{category} ({len(item_dict)})"])
+            selected_items = []
             for item_name, line_scope_list in item_dict.items():
+                occurrences = [
+                    (line, scope)
+                    for line, scope in line_scope_list
+                    if matches_selection(scope)
+                ]
+                if occurrences:
+                    selected_items.append((item_name, occurrences))
+
+            if not selected_items:
+                continue
+
+            cat_node = QTreeWidgetItem(root_element, [f"{category} ({len(selected_items)})"])
+            for item_name, occurrences in selected_items:
                 item_node = QTreeWidgetItem(cat_node, [item_name])
-                for line, scope in line_scope_list:
+                for line, scope in occurrences:
                     QTreeWidgetItem(item_node, [f"Scope: {scope}", f"Line {line}"])
         
         root_element.setExpanded(True)
@@ -165,7 +211,16 @@ class CodeAnalysisDashboard(QMainWindow):
         # 1-B. Every Line View Text Box
         self.txt_line_view.clear()
         line_text_html = []
-        for idx, line_content in enumerate(analyzer.lines, start=1):
+        if selection:
+            start_line = selection["node"].lineno
+            end_line = getattr(selection["node"], "end_lineno", start_line)
+            visible_lines = enumerate(
+                analyzer.lines[start_line - 1:end_line], start=start_line
+            )
+        else:
+            visible_lines = enumerate(analyzer.lines, start=1)
+
+        for idx, line_content in visible_lines:
             elements = analyzer.line_elements[idx]
             found_list = []
             for category, items in elements.items():
