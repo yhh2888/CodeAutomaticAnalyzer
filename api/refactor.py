@@ -31,6 +31,7 @@ class FuncRefactor:
         self.className = None
         self.objectName = None
         self.refactorSet = []
+        self.funcDoc = ""
 
     def _categorize_function_only(self, file_target, func_name, class_name=None):
         from funcElementAnatomy import ModuleCodeAnalyzer
@@ -107,55 +108,49 @@ class FuncRefactor:
             "refactorSet": self.refactorSet,
         }
 
-    def docMaker(self, isMethod = False):
+    def docMaker(self, isMethod = False, print_in_console=False):
         if not self.selectedFunc:
             raise ValueError("selectFunc() must be called before docMaker()")
 
-
-        if isMethod:
-            methodStart = 'self'
-        else:
-            methodStart = ''
-
         R1 = [parameter[1] for parameter in self.refactorSet[0]['R1'] if parameter[1] != 'self']
-        R1Phrase = methodStart + ''.join([param + ', ' for param in R1])
-        R1Syntax = f'def {self.selectedFunc}(' + R1Phrase[:-2] + '):'
-        print(R1Syntax)
+        parameters = (['self'] if isMethod else []) + R1
+        doc_lines = [f"\n def {self.selectedFunc}({', '.join(parameters)}):"]
 
         R2 = [parameter[1] for parameter in self.refactorSet[0]['R2']]
         # 다른 객체, 같은 메소드명을 구별할 수 있어야 함.
         if self.objectName and self.objectName != "module":
-            R2Syntax = '\n    new_self_class = ' + self.objectName + \
-                        ''.join(['\n    # ' + param for param in R2])
-            print(R2Syntax)
+            doc_lines.append(f"\n    new_self_class = {self.objectName}")
+            doc_lines.extend(f"    # {param}" for param in R2)
 
         R3 = [parameter[1] for parameter in self.refactorSet[0]['R3']]
-        R3Syntax = '\n    # variables' + \
-                    ''.join(['\n    ' + param + ' = None' for param in R3])
-        print(R3Syntax)
+        doc_lines.append("\n    # variables")
+        doc_lines.extend(f"    {param} = None" for param in R3)
 
         R4 = [parameter[1] for parameter in self.refactorSet[0]['R4']]
-        R4Syntax = '\n    # peeking data shape' + \
-                    ''.join(['\n    # ' + param for param in R4])
-        print(R4Syntax)
+        doc_lines.append("\n    # peeking data shape")
+        doc_lines.extend(f"    # {param}" for param in R4)
 
         R5 = [parameter[1] for parameter in self.refactorSet[0]['R5']]
-        R5Syntax = '\n    # objects and methods' + \
-                    ''.join(['\n    # ' + param for param in R5])
-        print(R5Syntax)
+        doc_lines.append("\n    # objects and methods")
+        doc_lines.extend(f"    # {param}" for param in R5)
 
         R6 = [parameter[1] for parameter in self.refactorSet[0]['R6']]
-        R6Syntax = '\n    # Used functions' + \
-                    ''.join(['\n    ' + param + ' = None' for param in R6])
-        print(R6Syntax)
+        doc_lines.append("\n    # Used functions")
+        doc_lines.extend(f"    {param} = None" for param in R6)
+
+        self.funcDoc = "\n".join(doc_lines)
+        if print_in_console:
+            print(self.funcDoc)
+        return self.funcDoc
 
 
 if __name__ == "__main__":
     from pprint import pprint
 
     file_target = r"E:\autoconstruction\components\NodeBlock.py"
+    file_target = r"C:\Users\hyunhoyang\Desktop\codes\githubcodes\autoconstruction\components\NodeBlock.py"
     selected_func_name = "itemChange"
     selected_class_name = "FunctionalBox"
     refactor = FuncRefactor()
     refactor.selectFunc(selected_func_name, file_target, selected_class_name)
-    refactor.docMaker()
+    refactor.docMaker(print_in_console=True)

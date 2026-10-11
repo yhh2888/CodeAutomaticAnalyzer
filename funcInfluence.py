@@ -346,9 +346,10 @@ class FuncInfluenceAnalyzer:
         print("================================================================================")
 
 if __name__ == "__main__":
-    file_target = r"E:\autoconstruction\components\NodeBlock.py"
-    selected_func_name = "update_properties"
-    selected_class_name = "VisualNode"
+    file_target = r"C:\Users\hyunhoyang\Desktop\codes\githubcodes\autoconstruction\components\Dialogs.py"
+    # file_target = r"E:\autoconstruction\components\NodeBlock.py"
+    selected_func_name = "get_updated_data"
+    selected_class_name = "EditDialog"
 
     # 1. 이전 analyzer 실행
     analyzer = ModuleCodeAnalyzer(file_target)
