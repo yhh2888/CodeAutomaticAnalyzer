@@ -31,12 +31,15 @@ class FuncRefactor:
         self.className = None
         self.objectName = None
         self.refactorSet = []
+        self.refactorLocations = {}
+        self.sourceLines = ()
         self.funcDoc = ""
 
     def _categorize_function_only(self, file_target, func_name, class_name=None):
         from funcElementAnatomy import ModuleCodeAnalyzer
 
         analyzer = ModuleCodeAnalyzer(file_target)
+        self.sourceLines = tuple(analyzer.lines)
         selection = select_function(analyzer.tree, func_name, class_name)
         func_scope = selection["scope"]
         self.objectName = selection["object_name"]
@@ -56,16 +59,22 @@ class FuncRefactor:
             "W6": [], "Not In W": [], "AlienType": [], "is_return": []
         }
 
-        for item_name in selected_items:
+        for item_name, line_numbers in selected_items.items():
             codeInfo = item_name.split(' ')
             typeInfo = codeInfo[0]
             structInfo = ' '.join(codeInfo[1:])
             structInfo = normalize_called_method(" ".join(codeInfo[1:]))
             read_type = classify_read(item_name)
             readSet.setdefault(read_type, []).append([typeInfo, structInfo])
+            self.refactorLocations.setdefault(
+                ("read", read_type, structInfo), []
+            ).extend(line_numbers)
 
             write_type = classify_write(item_name, parameter_names)
             writeSet.setdefault(write_type, []).append([typeInfo, structInfo])
+            self.refactorLocations.setdefault(
+                ("write", write_type, structInfo), []
+            ).extend(line_numbers)
 
         return readSet, writeSet
 
@@ -73,6 +82,8 @@ class FuncRefactor:
         self.file_target = str(Path(file_target).resolve())
         self.objectName = None
         self.className = class_name
+        self.refactorLocations = {}
+        self.sourceLines = ()
         if func_name is not None:
             self.selectedFunc = func_name
 
