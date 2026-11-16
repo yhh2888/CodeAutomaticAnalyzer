@@ -1,5 +1,6 @@
 import ast
 
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCursor, QTextFormat
 from PyQt5.QtWidgets import (
     QLabel,
@@ -11,7 +12,23 @@ from PyQt5.QtWidgets import (
 )
 
 from api.utils import select_function
-from funcdocs_plugins.api import FuncDocsPlugin, FunctionContext
+from funcdocs_plugins.api import (
+    CATEGORY_COLORS,
+    FuncDocsPlugin,
+    FunctionContext,
+)
+
+
+class ClickableCodeView(QPlainTextEdit):
+    line_clicked = pyqtSignal(int, int)
+
+    def mousePressEvent(self, event):
+        cursor = self.cursorForPosition(event.pos())
+        block_number = cursor.blockNumber()
+        column = cursor.positionInBlock()
+        super().mousePressEvent(event)
+        if event.button() == Qt.LeftButton:
+            self.line_clicked.emit(block_number, column)
 
 
 class SourceDetailPlugin(FuncDocsPlugin):
@@ -30,6 +47,11 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self._source_tree = None
         self._function_start_line = 1
         self._function_line_count = 0
+        self._context = None
+        self._line_elements = {}
+        self._element_ranges = []
+        self._related_source_lines = ()
+        self._diagram_item_callback = None
 
     def create_widget(self, parent):
         widget = QWidget(parent)
@@ -46,10 +68,13 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self.tabs.setDocumentMode(True)
         layout.addWidget(self.tabs)
 
-        self.function_code_view = QPlainTextEdit()
+        self.function_code_view = ClickableCodeView()
         self.function_code_view.setObjectName("codeView")
         self.function_code_view.setReadOnly(True)
         self.function_code_view.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.function_code_view.line_clicked.connect(
+            self._on_function_code_line_clicked
+        )
         self.tabs.addTab(self.function_code_view, "함수 코드")
 
         self.selected_line_view = QPlainTextEdit()
@@ -82,6 +107,7 @@ class SourceDetailPlugin(FuncDocsPlugin):
                 view.setLineWrapMode(line_wrap_mode)
 
     def on_function_selected(self, context: FunctionContext):
+        self._context = context
         source = "\n".join(context.source_lines)
         self._source_tree = ast.parse(source, filename=context.file_path)
         function_node = select_function(
@@ -101,6 +127,7 @@ class SourceDetailPlugin(FuncDocsPlugin):
         ]
         self._function_line_count = len(function_source_lines)
         self.function_code_view.setPlainText("\n".join(function_source_lines))
+        self._build_source_highlights(context)
         self._highlight_function_lines(())
         qualified_name = (
             f"{context.class_name}.{context.function_name}"
@@ -115,6 +142,9 @@ class SourceDetailPlugin(FuncDocsPlugin):
         )
         self._show_ast_placeholder("항목을 클릭하면 AST가 표시됩니다.")
         self.tabs.setCurrentWidget(self.function_code_view)
+
+    def set_diagram_item_callback(self, callback):
+        self._diagram_item_callback = callback
 
     def on_diagram_item_clicked(
         self, context: FunctionContext, category: str, value: str
@@ -161,8 +191,12 @@ class SourceDetailPlugin(FuncDocsPlugin):
 
     def clear(self):
         self._source_tree = None
+        self._context = None
         self._function_start_line = 1
         self._function_line_count = 0
+        self._line_elements = {}
+        self._element_ranges = []
+        self._related_source_lines = ()
         if self.selection_label is not None:
             self.selection_label.setText(
                 "함수를 선택한 뒤 관계도 값을 클릭하세요."
@@ -199,6 +233,71 @@ class SourceDetailPlugin(FuncDocsPlugin):
             == smallest_span
         ]
 
+    def _build_source_highlights(self, context):
+        self._line_elements = {}
+        self._element_ranges = []
+
+        for category, elements in context.refactor_set[0].items():
+            if category not in CATEGORY_COLORS:
+                continue
+            for element in elements:
+                value = element[1]
+                if value == "self":
+                    continue
+                source_lines = context.source_locations.get(
+                    ("read", category, value), ()
+                )
+                for source_line in source_lines:
+                    statements = self._statements_for_line(source_line)
+                    statement_lines = set()
+                    for statement in statements:
+                        statement_lines.update(range(
+                            statement.lineno,
+                            getattr(statement, "end_lineno", statement.lineno)
+                            + 1,
+                        ))
+                    if not statement_lines:
+                        statement_lines.add(source_line)
+
+                    for line in statement_lines:
+                        if not 1 <= line <= len(context.source_lines):
+                            continue
+                        elements_for_line = self._line_elements.setdefault(
+                            line, []
+                        )
+                        if (category, value) not in elements_for_line:
+                            elements_for_line.append((category, value))
+
+                        source = context.source_lines[line - 1]
+                        start = 0
+                        while value and (start := source.find(value, start)) >= 0:
+                            self._element_ranges.append((
+                                line, start, start + len(value), category,
+                                value,
+                            ))
+                            start += len(value)
+
+        self._related_source_lines = tuple(sorted(self._line_elements))
+
+    def _on_function_code_line_clicked(self, block_number, column):
+        line = self._function_start_line + block_number
+        elements = self._line_elements.get(line, ())
+        if not elements or self._diagram_item_callback is None:
+            return
+
+        matching_ranges = [
+            item for item in self._element_ranges
+            if item[0] == line and item[1] <= column < item[2]
+        ]
+        if matching_ranges:
+            _, _, _, category, value = max(
+                matching_ranges, key=lambda item: item[2] - item[1]
+            )
+            selected = (category, value)
+        else:
+            selected = elements[0]
+        self._diagram_item_callback(*selected)
+
     @staticmethod
     def _source_line(line, context):
         if line < 1 or line > len(context.source_lines):
@@ -211,8 +310,28 @@ class SourceDetailPlugin(FuncDocsPlugin):
 
         selections = []
         first_selected_block = None
+        selected_lines = set(source_lines)
+        for source_line in self._related_source_lines:
+            if source_line in selected_lines:
+                continue
+            selection = self._line_selection(source_line, "#e5e7eb")
+            if selection is not None:
+                selections.append(selection)
+
         for source_line in source_lines:
+            selection = self._line_selection(source_line, "#fff0b3")
+            if selection is None:
+                continue
+            selections.append(selection)
             block_number = source_line - self._function_start_line
+            block = self.function_code_view.document().findBlockByNumber(
+                block_number
+            )
+            if block.isValid() and first_selected_block is None:
+                first_selected_block = block
+
+        for line, start, end, category, _ in self._element_ranges:
+            block_number = line - self._function_start_line
             if not 0 <= block_number < self._function_line_count:
                 continue
             block = self.function_code_view.document().findBlockByNumber(
@@ -220,18 +339,13 @@ class SourceDetailPlugin(FuncDocsPlugin):
             )
             if not block.isValid():
                 continue
-
             cursor = QTextCursor(block)
-            cursor.movePosition(
-                QTextCursor.EndOfBlock, QTextCursor.KeepAnchor
-            )
+            cursor.setPosition(block.position() + start)
+            cursor.setPosition(block.position() + end, QTextCursor.KeepAnchor)
             selection = QTextEdit.ExtraSelection()
             selection.cursor = cursor
-            selection.format.setBackground(QColor("#fff0b3"))
-            selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+            selection.format.setForeground(QColor(CATEGORY_COLORS[category]))
             selections.append(selection)
-            if first_selected_block is None:
-                first_selected_block = block
 
         self.function_code_view.setExtraSelections(selections)
         if first_selected_block is not None:
@@ -239,6 +353,24 @@ class SourceDetailPlugin(FuncDocsPlugin):
                 QTextCursor(first_selected_block)
             )
             self.function_code_view.ensureCursorVisible()
+
+    def _line_selection(self, source_line, background):
+        block_number = source_line - self._function_start_line
+        if not 0 <= block_number < self._function_line_count:
+            return None
+        block = self.function_code_view.document().findBlockByNumber(
+            block_number
+        )
+        if not block.isValid():
+            return None
+
+        cursor = QTextCursor(block)
+        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+        selection = QTextEdit.ExtraSelection()
+        selection.cursor = cursor
+        selection.format.setBackground(QColor(background))
+        selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+        return selection
 
     def _render_ast(self, root, context):
         lines = []

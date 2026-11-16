@@ -40,7 +40,7 @@ from PyQt5.QtWidgets import (
 
 from api.refactor import FuncRefactor
 from funcElementAnatomy import ModuleCodeAnalyzer
-from funcdocs_plugins.api import FunctionContext
+from funcdocs_plugins.api import CATEGORY_COLORS, FunctionContext
 from funcdocs_plugins.manager import PluginManager
 
 
@@ -163,9 +163,45 @@ class ClickableTextItem(QGraphicsTextItem):
         self.category = category
         self.value = value
         self.click_handler = click_handler
+        self._hovered = False
+        self._selected = False
         self.setAcceptedMouseButtons(Qt.LeftButton)
+        self.setAcceptHoverEvents(True)
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.setToolTip("원본 구문, AST 구조, 출처 위치를 표시합니다.")
+
+    def set_selected(self, selected):
+        self._selected = selected
+        self.update()
+
+    def hoverEnterEvent(self, event):
+        self._hovered = True
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        super().hoverLeaveEvent(event)
+
+    def paint(self, painter, option, widget=None):
+        if self._selected or self._hovered:
+            painter.save()
+            text_bounds = self.boundingRect()
+            text_width = min(
+                text_bounds.width(), self.document().idealWidth()
+            )
+            bounds = QRectF(
+                text_bounds.x(), text_bounds.y(), text_width,
+                text_bounds.height(),
+            ).adjusted(-4, -2, 4, 2)
+            border = QColor("#eab308" if self._selected else "#94a3b8")
+            fill = QColor("#fef3c7" if self._selected else "#f1f5f9")
+            painter.setPen(QPen(border, 1.5 if self._selected else 1))
+            painter.setBrush(QBrush(fill))
+            painter.drawRoundedRect(bounds, 4, 4)
+            painter.restore()
+        super().paint(painter, option, widget)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -177,12 +213,30 @@ class RelationshipDiagramView(QGraphicsView):
     item_clicked = pyqtSignal(str, str)
 
     CATEGORY_INFO = (
-        ("R1", "입력 매개변수", "함수에 전달되는 값", QColor("#2563eb")),
-        ("R2", "객체 참조", "self 및 내부 객체 참조", QColor("#7c3aed")),
-        ("R3", "객체 필드", "참조하는 객체의 속성", QColor("#0891b2")),
-        ("R4", "데이터 접근", "키·인덱스 기반 접근", QColor("#059669")),
-        ("R5", "객체 메서드", "다른 객체의 메서드 호출", QColor("#d97706")),
-        ("R6", "함수·정적 요소", "일반 함수 및 정적 요소", QColor("#dc2626")),
+        (
+            "R1", "입력 매개변수", "함수에 전달되는 값",
+            QColor(CATEGORY_COLORS["R1"]),
+        ),
+        (
+            "R2", "객체 참조", "self 및 내부 객체 참조",
+            QColor(CATEGORY_COLORS["R2"]),
+        ),
+        (
+            "R3", "객체 필드", "참조하는 객체의 속성",
+            QColor(CATEGORY_COLORS["R3"]),
+        ),
+        (
+            "R4", "데이터 접근", "키·인덱스 기반 접근",
+            QColor(CATEGORY_COLORS["R4"]),
+        ),
+        (
+            "R5", "객체 메서드", "다른 객체의 메서드 호출",
+            QColor(CATEGORY_COLORS["R5"]),
+        ),
+        (
+            "R6", "함수·정적 요소", "일반 함수 및 정적 요소",
+            QColor(CATEGORY_COLORS["R6"]),
+        ),
     )
 
     def __init__(self, parent=None):
@@ -197,6 +251,8 @@ class RelationshipDiagramView(QGraphicsView):
         self.setFrameShape(QFrame.NoFrame)
         self.setMinimumSize(300, 240)
         self._has_diagram = False
+        self._diagram_items = {}
+        self._selected_item = None
 
     def wheelEvent(self, event):
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
@@ -216,6 +272,8 @@ class RelationshipDiagramView(QGraphicsView):
     def clear_diagram(self):
         scene = self.scene()
         scene.clear()
+        self._diagram_items = {}
+        self._selected_item = None
         message = self._add_text(
             scene, "왼쪽에서 함수나 메서드를 선택하면 관계도가 표시됩니다.",
             0, 0, 520, QFont("Malgun Gothic", 10), QColor("#64748b")
@@ -264,6 +322,7 @@ class RelationshipDiagramView(QGraphicsView):
                     width - padding * 2 - 17, QFont("Malgun Gothic", 9),
                     QColor("#334155"), category_key
                 )
+                self._diagram_items[(category_key, value)] = text_item
                 content_y += max(
                     marker.boundingRect().height(),
                     text_item.boundingRect().height()
@@ -287,6 +346,8 @@ class RelationshipDiagramView(QGraphicsView):
     def show_function(self, function_name, class_name, refactor_set):
         scene = self.scene()
         scene.clear()
+        self._diagram_items = {}
+        self._selected_item = None
         read_set = refactor_set[0]
         parameters = [
             item[1] for item in read_set.get("R1", [])
@@ -368,6 +429,13 @@ class RelationshipDiagramView(QGraphicsView):
         scene.setSceneRect(0, 0, center_x * 2, total_height)
         self._has_diagram = True
         self.fit_diagram()
+
+    def set_selected_item(self, category, value):
+        if self._selected_item is not None:
+            self._selected_item.set_selected(False)
+        self._selected_item = self._diagram_items.get((category, value))
+        if self._selected_item is not None:
+            self._selected_item.set_selected(True)
 
 
 class FuncDocsWindow(QMainWindow):
@@ -498,6 +566,14 @@ class FuncDocsWindow(QMainWindow):
                 self._set_plugin_wrap_long_lines(
                     plugin, self.wrap_long_lines
                 )
+                if callable(getattr(
+                    plugin, "set_diagram_item_callback", None
+                )):
+                    self._invoke_plugin(
+                        plugin,
+                        "set_diagram_item_callback",
+                        self.on_diagram_item_clicked,
+                    )
 
         self.plugin_area.setMinimumWidth(360)
         self._refresh_plugin_tabs()
@@ -785,6 +861,7 @@ class FuncDocsWindow(QMainWindow):
         context = self._last_context
         if context is None:
             return
+        self.diagram_view.set_selected_item(category, value)
 
         for plugin in self.plugins:
             if (

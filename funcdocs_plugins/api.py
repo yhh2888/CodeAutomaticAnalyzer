@@ -7,6 +7,15 @@ from PyQt5.QtWidgets import QWidget
 
 RefactorSet = list[dict[str, list[list[str]]]]
 
+CATEGORY_COLORS = {
+    "R1": "#2563eb",
+    "R2": "#7c3aed",
+    "R3": "#0891b2",
+    "R4": "#059669",
+    "R5": "#d97706",
+    "R6": "#dc2626",
+}
+
 
 @dataclass(frozen=True)
 class FunctionContext:
