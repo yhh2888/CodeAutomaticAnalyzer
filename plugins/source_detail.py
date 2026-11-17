@@ -1,12 +1,25 @@
 import ast
+import io
+import json
+import os
+import tokenize
 
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, QSettings, pyqtSignal
 from PyQt5.QtGui import QColor, QTextCursor, QTextFormat
 from PyQt5.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
     QPlainTextEdit,
+    QPushButton,
+    QSplitter,
     QTabWidget,
     QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -34,7 +47,9 @@ class ClickableCodeView(QPlainTextEdit):
 class SourceDetailPlugin(FuncDocsPlugin):
     plugin_id = "source_detail"
     name = "소스 구문 위치"
-    description = "선택 함수 코드와 관계도 항목의 줄·AST 구조를 표시합니다."
+    description = (
+        "선택한 원문 구문과 AST를 연결하고 조건 후보를 관리합니다."
+    )
     default_enabled = True
     order = 10
 
@@ -44,7 +59,10 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self.function_code_view = None
         self.selected_line_view = None
         self.ast_view = None
+        self.ast_source_view = None
         self._source_tree = None
+        self._function_node = None
+        self._comment_ranges = {}
         self._function_start_line = 1
         self._function_line_count = 0
         self._context = None
@@ -52,6 +70,22 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self._element_ranges = []
         self._related_source_lines = ()
         self._diagram_item_callback = None
+        self._condition_candidates_callback = None
+        self._source_code_click_in_progress = False
+        self._ast_nodes = {}
+        self._ast_items = {}
+        self._selected_ast_node = None
+        self._updating_ast_from_source = False
+        self._condition_candidates = []
+        self._candidate_settings = QSettings(
+            "CodeAutomaticAnalyzer", "FuncDocs"
+        )
+        self._candidate_settings_key = None
+        self._condition_candidate_occurrences = {}
+        self.ast_page = None
+        self.candidate_page = None
+        self.candidate_view = None
+        self.add_candidate_button = None
 
     def create_widget(self, parent):
         widget = QWidget(parent)
@@ -83,11 +117,57 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self.selected_line_view.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.tabs.addTab(self.selected_line_view, "선택한 줄")
 
-        self.ast_view = QPlainTextEdit()
+        self.ast_page = QWidget()
+        ast_layout = QVBoxLayout(self.ast_page)
+        ast_layout.setContentsMargins(0, 0, 0, 0)
+        self.ast_view = QTreeWidget()
         self.ast_view.setObjectName("codeView")
-        self.ast_view.setReadOnly(True)
-        self.ast_view.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.tabs.addTab(self.ast_view, "AST 구조")
+        self.ast_view.setHeaderLabels(["AST 노드와 원문 위치"])
+        self.ast_view.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.ast_view.setStyleSheet(
+            "QTreeWidget::item:selected {"
+            "background-color: #fff0b3;"
+            "color: #182b49;"
+            "}"
+        )
+        self.ast_view.currentItemChanged.connect(
+            self._on_ast_tree_selection_changed
+        )
+        ast_splitter = QSplitter(Qt.Horizontal)
+        ast_splitter.addWidget(self.ast_view)
+        self.ast_source_view = QPlainTextEdit()
+        self.ast_source_view.setObjectName("codeView")
+        self.ast_source_view.setReadOnly(True)
+        self.ast_source_view.setLineWrapMode(QPlainTextEdit.NoWrap)
+        ast_splitter.addWidget(self.ast_source_view)
+        ast_splitter.setStretchFactor(0, 3)
+        ast_splitter.setStretchFactor(1, 2)
+        ast_layout.addWidget(ast_splitter, stretch=1)
+        self.add_candidate_button = QPushButton("선택 AST를 조건 후보로 추가")
+        self.add_candidate_button.clicked.connect(
+            self._add_selected_ast_candidate
+        )
+        ast_layout.addWidget(self.add_candidate_button)
+        self.tabs.addTab(self.ast_page, "AST 구조")
+
+        self.candidate_page = QWidget()
+        candidate_layout = QVBoxLayout(self.candidate_page)
+        candidate_layout.setContentsMargins(0, 0, 0, 0)
+        candidate_layout.addWidget(QLabel(
+            "조건 후보는 함수 간 공유되며, 현재 함수 범위 내에서 "
+            "유형이 일치하는 구문을 Rn으로 표시합니다."
+        ))
+        self.candidate_view = QListWidget()
+        self.candidate_view.itemDoubleClicked.connect(
+            self._select_condition_candidate
+        )
+        candidate_layout.addWidget(self.candidate_view, stretch=1)
+        remove_candidate_button = QPushButton("선택 후보 삭제")
+        remove_candidate_button.clicked.connect(
+            self._remove_selected_condition_candidate
+        )
+        candidate_layout.addWidget(remove_candidate_button)
+        self.tabs.addTab(self.candidate_page, "조건 후보")
 
         self.clear()
         return widget
@@ -101,7 +181,7 @@ class SourceDetailPlugin(FuncDocsPlugin):
         for view in (
             self.function_code_view,
             self.selected_line_view,
-            self.ast_view,
+            self.ast_source_view,
         ):
             if view is not None:
                 view.setLineWrapMode(line_wrap_mode)
@@ -110,9 +190,14 @@ class SourceDetailPlugin(FuncDocsPlugin):
         self._context = context
         source = "\n".join(context.source_lines)
         self._source_tree = ast.parse(source, filename=context.file_path)
+        self._build_comment_ranges(context)
         function_node = select_function(
             self._source_tree, context.function_name, context.class_name
         )["node"]
+        self._function_node = function_node
+        self._candidate_settings_key = self._get_candidate_settings_key()
+        self._condition_candidates = self._load_condition_candidates()
+        self._refresh_candidate_view()
         decorator_lines = [
             decorator.lineno for decorator in function_node.decorator_list
         ]
@@ -135,20 +220,28 @@ class SourceDetailPlugin(FuncDocsPlugin):
             else context.function_name
         )
         self.selection_label.setText(
-            f"{qualified_name} - 관계도 값을 클릭하세요."
+            f"{qualified_name} - 원문 구문을 선택하면 AST와 연결됩니다."
         )
         self.selected_line_view.setPlainText(
-            "관계도 값을 클릭하면 해당 줄이 표시됩니다."
+            "원문이나 AST 노드를 선택하면 해당 위치가 표시됩니다."
         )
-        self._show_ast_placeholder("항목을 클릭하면 AST가 표시됩니다.")
+        self._show_ast_placeholder("원문 구문을 선택하면 AST가 표시됩니다.")
         self.tabs.setCurrentWidget(self.function_code_view)
 
     def set_diagram_item_callback(self, callback):
         self._diagram_item_callback = callback
 
+    def set_condition_candidates_callback(self, callback):
+        self._condition_candidates_callback = callback
+
     def on_diagram_item_clicked(
         self, context: FunctionContext, category: str, value: str
     ):
+        if self._source_code_click_in_progress:
+            return
+        if category == "Rn":
+            self._on_condition_candidate_diagram_clicked(value)
+            return
         self.selection_label.setText(f"{category} · {value}")
         source_locations = sorted(set(context.source_locations.get(
             ("read", category, value), []
@@ -178,25 +271,30 @@ class SourceDetailPlugin(FuncDocsPlugin):
             else "연결된 원본 구문을 찾을 수 없습니다."
         )
         self._highlight_function_lines(source_locations)
-        ast_sections = []
         if not statements:
             self._show_ast_placeholder("연결된 AST 노드를 찾을 수 없습니다.")
-            self.tabs.setCurrentWidget(self.function_code_view)
             return
 
-        for statement in statements:
-            ast_sections.append(self._render_ast(statement, context))
-        self.ast_view.setPlainText("\n\n".join(ast_sections))
-        self.tabs.setCurrentWidget(self.function_code_view)
+        self._show_ast_nodes(statements, statements[0])
+        self._highlight_ast_node_in_source(statements[0])
 
     def clear(self):
         self._source_tree = None
+        self._function_node = None
         self._context = None
+        self._comment_ranges = {}
         self._function_start_line = 1
         self._function_line_count = 0
         self._line_elements = {}
         self._element_ranges = []
         self._related_source_lines = ()
+        self._ast_nodes = {}
+        self._ast_items = {}
+        self._selected_ast_node = None
+        self._updating_ast_from_source = False
+        self._condition_candidates = []
+        self._candidate_settings_key = None
+        self._condition_candidate_occurrences = {}
         if self.selection_label is not None:
             self.selection_label.setText(
                 "함수를 선택한 뒤 관계도 값을 클릭하세요."
@@ -206,6 +304,8 @@ class SourceDetailPlugin(FuncDocsPlugin):
             self._highlight_function_lines(())
         if self.selected_line_view is not None:
             self.selected_line_view.clear()
+        if self.candidate_view is not None:
+            self.candidate_view.clear()
         if self.ast_view is not None:
             self._show_ast_placeholder("AST 분석을 기다리는 중입니다.")
 
@@ -248,39 +348,70 @@ class SourceDetailPlugin(FuncDocsPlugin):
                     ("read", category, value), ()
                 )
                 for source_line in source_lines:
-                    statements = self._statements_for_line(source_line)
-                    statement_lines = set()
-                    for statement in statements:
-                        statement_lines.update(range(
-                            statement.lineno,
-                            getattr(statement, "end_lineno", statement.lineno)
-                            + 1,
+                    if not 1 <= source_line <= len(context.source_lines):
+                        continue
+                    elements_for_line = self._line_elements.setdefault(
+                        source_line, []
+                    )
+                    if (category, value) not in elements_for_line:
+                        elements_for_line.append((category, value))
+
+                    source = context.source_lines[source_line - 1]
+                    start = 0
+                    while value and (start := source.find(value, start)) >= 0:
+                        self._element_ranges.append((
+                            source_line, start, start + len(value), category,
+                            value,
                         ))
-                    if not statement_lines:
-                        statement_lines.add(source_line)
-
-                    for line in statement_lines:
-                        if not 1 <= line <= len(context.source_lines):
-                            continue
-                        elements_for_line = self._line_elements.setdefault(
-                            line, []
-                        )
-                        if (category, value) not in elements_for_line:
-                            elements_for_line.append((category, value))
-
-                        source = context.source_lines[line - 1]
-                        start = 0
-                        while value and (start := source.find(value, start)) >= 0:
-                            self._element_ranges.append((
-                                line, start, start + len(value), category,
-                                value,
-                            ))
-                            start += len(value)
+                        start += len(value)
 
         self._related_source_lines = tuple(sorted(self._line_elements))
 
+    def _build_comment_ranges(self, context):
+        self._comment_ranges = {}
+        source = "\n".join(context.source_lines)
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type != tokenize.COMMENT:
+                continue
+            line, start = token.start
+            _, end = token.end
+            source_line = context.source_lines[line - 1]
+            start_column = len(
+                source_line[:start].encode("utf-16-le")
+            ) // 2
+            end_column = len(
+                source_line[:end].encode("utf-16-le")
+            ) // 2
+            self._comment_ranges.setdefault(line, []).append(
+                (start_column, end_column)
+            )
+
     def _on_function_code_line_clicked(self, block_number, column):
         line = self._function_start_line + block_number
+        if self._context is None:
+            return
+        if any(
+            start <= column < end
+            for start, end in self._comment_ranges.get(line, ())
+        ):
+            return
+
+        node = self._ast_node_at_position(line, column)
+        statements = self._statements_for_line(line)
+        if not statements and node is not None:
+            statements = [node]
+        if node is None and statements:
+            node = statements[0]
+
+        self.selected_line_view.setPlainText(
+            self._source_line(line, self._context)
+        )
+        self.selection_label.setText(f"원문 줄 {line} · AST 노드 선택")
+        self._highlight_function_lines((line,))
+        self._show_ast_nodes(statements, node)
+        if self._node_has_source_location(node):
+            self._highlight_ast_node_in_source(node)
+
         elements = self._line_elements.get(line, ())
         if not elements or self._diagram_item_callback is None:
             return
@@ -296,7 +427,539 @@ class SourceDetailPlugin(FuncDocsPlugin):
             selected = (category, value)
         else:
             selected = elements[0]
-        self._diagram_item_callback(*selected)
+        self._source_code_click_in_progress = True
+        try:
+            self._diagram_item_callback(*selected)
+        finally:
+            self._source_code_click_in_progress = False
+
+    def _ast_node_at_position(self, line, column):
+        if self._source_tree is None or not 1 <= line <= len(
+            self._context.source_lines
+        ):
+            return None
+
+        source_line = self._context.source_lines[line - 1]
+        utf16_column = 0
+        prefix = []
+        for character in source_line:
+            width = len(character.encode("utf-16-le")) // 2
+            if utf16_column + width > column:
+                break
+            prefix.append(character)
+            utf16_column += width
+        byte_column = len("".join(prefix).encode("utf-8"))
+
+        candidates = []
+        for index, node in enumerate(ast.walk(self._source_tree)):
+            start_line = getattr(node, "lineno", None)
+            end_line = getattr(node, "end_lineno", start_line)
+            if start_line is None or not start_line <= line <= end_line:
+                continue
+            start_column = getattr(node, "col_offset", 0)
+            end_column = getattr(node, "end_col_offset", start_column)
+            if line == start_line and byte_column < start_column:
+                continue
+            if line == end_line and byte_column > end_column:
+                continue
+            candidates.append((
+                end_line - start_line,
+                end_column - start_column if start_line == end_line else 0,
+                index,
+                node,
+            ))
+
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: item[:3])[3]
+
+    def _show_ast_nodes(self, roots, selected_node=None):
+        self.ast_view.clear()
+        self._ast_nodes = {}
+        self._ast_items = {}
+        self._selected_ast_node = selected_node
+        self._updating_ast_from_source = True
+        selected_item = None
+        for root in roots:
+            item = self._add_ast_tree_item(None, root, "")
+            if root is selected_node:
+                selected_item = item
+        if selected_node is not None:
+            selected_item = self._find_ast_item(selected_node)
+        self.ast_view.expandAll()
+        if selected_item is not None:
+            self.ast_view.setCurrentItem(selected_item)
+        self._updating_ast_from_source = False
+        self.add_candidate_button.setEnabled(
+            self._node_has_source_location(selected_node)
+        )
+        if not roots:
+            self._show_ast_placeholder("선택 위치에 AST 구문이 없습니다.")
+
+    def _add_ast_tree_item(self, parent, node, field_name):
+        label = self._ast_tree_label(node, field_name)
+        item = (
+            QTreeWidgetItem(parent, [label])
+            if parent is not None
+            else QTreeWidgetItem(self.ast_view, [label])
+        )
+        item.setData(0, Qt.UserRole, id(node))
+        self._ast_nodes[id(node)] = node
+        self._ast_items[id(node)] = item
+
+        for field, value in ast.iter_fields(node):
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and field == "body"
+            ):
+                continue
+            if isinstance(value, ast.expr_context):
+                continue
+            if isinstance(value, ast.AST):
+                self._add_ast_tree_item(item, value, field)
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    if not isinstance(child, ast.AST) or isinstance(
+                        child, ast.expr_context
+                    ):
+                        continue
+                    self._add_ast_tree_item(
+                        item, child, f"{field}[{index}]"
+                    )
+        return item
+
+    def _find_ast_item(self, node):
+        return self._ast_items.get(id(node))
+
+    def _ast_tree_label(self, node, field_name):
+        description = self._node_display(node, self._context)
+        if field_name:
+            description = f"{field_name}: {description}"
+        annotation = self._node_annotation(node, True)
+        if annotation:
+            description += f" ← {annotation}"
+        if self._node_has_source_location(node):
+            start = node.lineno
+            end = getattr(node, "end_lineno", start)
+            description += (
+                f"  [줄 {start}" if start == end
+                else f"  [줄 {start}-{end}"
+            ) + "]"
+        return description
+
+    @staticmethod
+    def _node_has_source_location(node):
+        return node is not None and getattr(node, "lineno", None) is not None
+
+    def _on_ast_tree_selection_changed(self, current, _previous):
+        if current is None or self._updating_ast_from_source:
+            return
+        node = self._ast_nodes.get(current.data(0, Qt.UserRole))
+        self._selected_ast_node = node
+        self.add_candidate_button.setEnabled(
+            self._node_has_source_location(node)
+        )
+        source_node = node
+        parent = current.parent()
+        while (
+            source_node is not None
+            and not self._node_has_source_location(source_node)
+            and parent is not None
+        ):
+            source_node = self._ast_nodes.get(parent.data(0, Qt.UserRole))
+            parent = parent.parent()
+        if source_node is None or not self._node_has_source_location(
+            source_node
+        ):
+            return
+        self._highlight_ast_node_in_source(source_node)
+
+    def _highlight_ast_node_in_source(self, node):
+        start_line = node.lineno
+        end_line = getattr(node, "end_lineno", start_line)
+        if (
+            start_line < self._function_start_line
+            or end_line >= self._function_start_line + self._function_line_count
+        ):
+            return
+
+        self._highlight_function_lines(())
+        start_block = self.function_code_view.document().findBlockByNumber(
+            start_line - self._function_start_line
+        )
+        end_block = self.function_code_view.document().findBlockByNumber(
+            end_line - self._function_start_line
+        )
+        if not start_block.isValid() or not end_block.isValid():
+            return
+
+        start_column = self._ast_column_to_utf16(
+            self._context.source_lines[start_line - 1],
+            getattr(node, "col_offset", 0),
+        )
+        end_column = self._ast_column_to_utf16(
+            self._context.source_lines[end_line - 1],
+            getattr(
+                node,
+                "end_col_offset",
+                len(self._context.source_lines[end_line - 1].encode("utf-8")),
+            ),
+        )
+        self._add_ast_source_highlights(
+            self.function_code_view,
+            start_line,
+            end_line,
+            start_column,
+            end_column,
+            self._function_start_line,
+        )
+        self.selected_line_view.setPlainText("\n".join(
+            self._source_line(line, self._context)
+            for line in range(start_line, end_line + 1)
+        ))
+
+        source_text = "\n".join(
+            self._context.source_lines[start_line - 1:end_line]
+        )
+        self.ast_source_view.setPlainText(source_text)
+        self._add_ast_source_highlights(
+            self.ast_source_view,
+            start_line,
+            end_line,
+            start_column,
+            end_column,
+            start_line,
+        )
+
+    def _add_ast_source_highlights(
+        self, view, start_line, end_line, start_column, end_column,
+        first_source_line,
+    ):
+        selections = view.extraSelections()
+        for source_line in range(start_line, end_line + 1):
+            block_number = source_line - first_source_line
+            block = view.document().findBlockByNumber(block_number)
+            if not block.isValid():
+                continue
+
+            source = self._context.source_lines[source_line - 1]
+            range_start = start_column if source_line == start_line else 0
+            range_end = (
+                end_column
+                if source_line == end_line
+                else len(source.encode("utf-16-le")) // 2
+            )
+            segments = [(range_start, range_end)]
+            for comment_start, comment_end in self._comment_ranges.get(
+                source_line, ()
+            ):
+                remaining = []
+                for segment_start, segment_end in segments:
+                    if (
+                        comment_end <= segment_start
+                        or comment_start >= segment_end
+                    ):
+                        remaining.append((segment_start, segment_end))
+                        continue
+                    if segment_start < comment_start:
+                        remaining.append((segment_start, comment_start))
+                    if comment_end < segment_end:
+                        remaining.append((comment_end, segment_end))
+                segments = remaining
+
+            for segment_start, segment_end in segments:
+                if segment_start >= segment_end:
+                    continue
+                cursor = QTextCursor(block)
+                cursor.setPosition(block.position() + segment_start)
+                cursor.setPosition(
+                    block.position() + segment_end, QTextCursor.KeepAnchor
+                )
+                selection = QTextEdit.ExtraSelection()
+                selection.cursor = cursor
+                selection.format.setBackground(QColor("#fff0b3"))
+                selections.append(selection)
+        view.setExtraSelections(selections)
+
+    @staticmethod
+    def _ast_column_to_utf16(source_line, byte_column):
+        utf16_column = 0
+        byte_offset = 0
+        for character in source_line:
+            encoded_width = len(character.encode("utf-8"))
+            if byte_offset + encoded_width > byte_column:
+                break
+            byte_offset += encoded_width
+            utf16_column += len(character.encode("utf-16-le")) // 2
+        return utf16_column
+
+    @staticmethod
+    def _get_candidate_settings_key():
+        return "diagramConditionCandidates"
+
+    def _load_condition_candidates(self):
+        migrating = False
+        raw = self._candidate_settings.value(
+            self._candidate_settings_key, None, type=str
+        )
+        if raw is None:
+            migrating = True
+            legacy_candidates = []
+            legacy_prefix = f"{self._candidate_settings_key}/"
+            for key in self._candidate_settings.allKeys():
+                if not key.startswith(legacy_prefix):
+                    continue
+                legacy_raw = self._candidate_settings.value(
+                    key, "[]", type=str
+                )
+                try:
+                    stored_candidates = json.loads(legacy_raw)
+                except json.JSONDecodeError as error:
+                    QMessageBox.warning(
+                        self.tabs,
+                        "조건 후보 읽기 실패",
+                        f"이전 조건 후보를 읽을 수 없습니다.\n{error}",
+                    )
+                    continue
+                if not isinstance(stored_candidates, list):
+                    QMessageBox.warning(
+                        self.tabs,
+                        "조건 후보 읽기 실패",
+                        "이전 조건 후보 형식이 올바르지 않습니다.",
+                    )
+                    continue
+                legacy_candidates.extend(stored_candidates)
+            raw = json.dumps(legacy_candidates, ensure_ascii=False)
+        try:
+            candidates = json.loads(raw)
+        except json.JSONDecodeError as error:
+            QMessageBox.warning(
+                self.tabs,
+                "조건 후보 읽기 실패",
+                f"저장된 조건 후보를 읽을 수 없습니다.\n{error}",
+            )
+            return []
+        if not isinstance(candidates, list):
+            QMessageBox.warning(
+                self.tabs,
+                "조건 후보 읽기 실패",
+                "저장된 조건 후보 형식이 올바르지 않습니다.",
+            )
+            return []
+        valid_candidates = [
+            candidate for candidate in candidates
+            if isinstance(candidate, dict)
+            and isinstance(candidate.get("node_type"), str)
+            and isinstance(candidate.get("ast"), str)
+            and isinstance(candidate.get("source"), str)
+            and isinstance(candidate.get("line"), int)
+        ]
+        if len(valid_candidates) != len(candidates):
+            QMessageBox.warning(
+                self.tabs,
+                "조건 후보 읽기 실패",
+                "형식이 올바르지 않은 저장 후보를 건너뛰었습니다.",
+            )
+        unique_candidates = []
+        seen_types = set()
+        for candidate in valid_candidates:
+            if candidate["node_type"] in seen_types:
+                continue
+            seen_types.add(candidate["node_type"])
+            unique_candidates.append(candidate)
+        if migrating or len(unique_candidates) != len(valid_candidates):
+            self._candidate_settings.setValue(
+                self._candidate_settings_key,
+                json.dumps(unique_candidates, ensure_ascii=False),
+            )
+            self._candidate_settings.sync()
+            if self._candidate_settings.status() != QSettings.NoError:
+                QMessageBox.warning(
+                    self.tabs,
+                    "조건 후보 저장 실패",
+                    "공유 조건 후보를 저장하지 못했습니다.",
+                )
+        return unique_candidates
+
+    def _refresh_candidate_view(self):
+        if self.candidate_view is not None:
+            self.candidate_view.clear()
+            for index, candidate in enumerate(self._condition_candidates):
+                item = QListWidgetItem(
+                    self._condition_candidate_label(candidate)
+                )
+                item.setData(Qt.UserRole, index)
+                item.setToolTip(candidate["ast"])
+                self.candidate_view.addItem(item)
+        diagram_entries = self._condition_candidate_diagram_entries()
+        if self._condition_candidates_callback is not None:
+            self._condition_candidates_callback(diagram_entries)
+
+    def _condition_candidate_diagram_entries(self):
+        self._condition_candidate_occurrences = {}
+        if self._function_node is None:
+            return []
+
+        entries = []
+        seen_nodes = set()
+        source = "\n".join(self._context.source_lines)
+        for candidate in self._condition_candidates:
+            matching_nodes = sorted(
+                (
+                    node for node in ast.walk(self._function_node)
+                    if type(node).__name__ == candidate["node_type"]
+                    and self._node_has_source_location(node)
+                ),
+                key=lambda node: (
+                    node.lineno,
+                    getattr(node, "col_offset", 0),
+                ),
+            )
+            for node in matching_nodes:
+                if id(node) in seen_nodes:
+                    continue
+                seen_nodes.add(id(node))
+                node_source = ast.get_source_segment(source, node)
+                if node_source is None:
+                    node_source = self._node_display(node, self._context)
+                node_source = " ".join(node_source.split())
+                line = node.lineno
+                column = self._ast_column_to_utf16(
+                    self._context.source_lines[line - 1],
+                    getattr(node, "col_offset", 0),
+                ) + 1
+                label = (
+                    f"{type(node).__name__} · {node_source} "
+                    f"(줄 {line}, 열 {column})"
+                )
+                self._condition_candidate_occurrences[label] = node
+                entries.append(label)
+        return entries
+
+    @staticmethod
+    def _condition_candidate_label(candidate):
+        source = " ".join(candidate["source"].split())
+        file_path = candidate.get("file_path")
+        location = (
+            f"{os.path.basename(file_path)}:{candidate['line']}"
+            if isinstance(file_path, str) and file_path
+            else f"예시 줄 {candidate['line']}"
+        )
+        return (
+            f"{candidate['node_type']} · {source} ({location})"
+        )
+
+    def _add_selected_ast_candidate(self):
+        node = self._selected_ast_node
+        if (
+            self._context is None
+            or self._candidate_settings_key is None
+            or not self._node_has_source_location(node)
+        ):
+            return
+
+        node_type = type(node).__name__
+        existing_index = next(
+            (
+                index for index, candidate
+                in enumerate(self._condition_candidates)
+                if candidate["node_type"] == node_type
+            ),
+            None,
+        )
+        if existing_index is not None:
+            self.candidate_view.setCurrentRow(existing_index)
+            self.selection_label.setText(
+                "이미 같은 AST 유형이 조건 후보에 추가되어 있습니다."
+            )
+            self.tabs.setCurrentWidget(self.candidate_page)
+            return
+
+        pattern = ast.dump(node, include_attributes=False)
+        source = ast.get_source_segment(
+            "\n".join(self._context.source_lines), node
+        )
+        if source is None:
+            source = self._node_display(node, self._context)
+        self._condition_candidates.append({
+            "node_type": node_type,
+            "ast": pattern,
+            "source": source,
+            "line": node.lineno,
+            "file_path": self._context.file_path,
+        })
+        self._save_condition_candidates()
+        self._refresh_candidate_view()
+        self.candidate_view.setCurrentRow(
+            len(self._condition_candidates) - 1
+        )
+        self.tabs.setCurrentWidget(self.candidate_page)
+
+    def _save_condition_candidates(self):
+        self._candidate_settings.setValue(
+            self._candidate_settings_key,
+            json.dumps(self._condition_candidates, ensure_ascii=False),
+        )
+        self._candidate_settings.sync()
+        if self._candidate_settings.status() != QSettings.NoError:
+            QMessageBox.warning(
+                self.tabs,
+                "조건 후보 저장 실패",
+                "조건 후보를 설정에 저장하지 못했습니다.",
+            )
+
+    def _remove_selected_condition_candidate(self):
+        item = self.candidate_view.currentItem()
+        if item is None:
+            return
+        self._condition_candidates.pop(item.data(Qt.UserRole))
+        self._save_condition_candidates()
+        self._refresh_candidate_view()
+
+    def _select_condition_candidate(self, item):
+        candidate = self._condition_candidates[item.data(Qt.UserRole)]
+        node = self._condition_candidate_node(candidate)
+        if node is None:
+            return
+        self._show_condition_candidate(candidate, node)
+        self.tabs.setCurrentWidget(self.ast_page)
+
+    def _on_condition_candidate_diagram_clicked(self, value):
+        node = self._condition_candidate_occurrences.get(value)
+        if node is None:
+            QMessageBox.warning(
+                self.tabs,
+                "조건 후보 선택 실패",
+                "선택한 다이어그램 조건 후보를 찾을 수 없습니다.",
+            )
+            return
+        candidate = next(
+            candidate for candidate in self._condition_candidates
+            if candidate["node_type"] == type(node).__name__
+        )
+        self._show_condition_candidate(candidate, node, value)
+
+    def _condition_candidate_node(self, candidate):
+        matching_nodes = sorted(
+            (
+                node for node in ast.walk(self._function_node)
+                if type(node).__name__ == candidate["node_type"]
+                and self._node_has_source_location(node)
+            ),
+            key=lambda node: (
+                node.lineno,
+                getattr(node, "col_offset", 0),
+            ),
+        )
+        return matching_nodes[0] if matching_nodes else None
+
+    def _show_condition_candidate(self, candidate, node, label=None):
+        if label is None:
+            label = self._condition_candidate_label(candidate)
+        self.selection_label.setText(f"Rn · {label}")
+        statements = self._statements_for_line(node.lineno)
+        self._show_ast_nodes(statements or [node], node)
+        self._highlight_ast_node_in_source(node)
 
     @staticmethod
     def _source_line(line, context):
@@ -372,142 +1035,6 @@ class SourceDetailPlugin(FuncDocsPlugin):
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         return selection
 
-    def _render_ast(self, root, context):
-        lines = []
-        self._append_ast_lines(
-            root, "", "", context, lines, is_root=True
-        )
-        return "\n".join(lines)
-
-    def _append_ast_lines(
-        self,
-        node,
-        field_name,
-        prefix,
-        context,
-        lines,
-        is_root=False,
-        is_last=True,
-        allow_call_summary=True,
-    ):
-        line = self._format_ast_node(
-            node, field_name, context, allow_call_summary
-        )
-        if is_root:
-            lines.append(line)
-            child_prefix = ""
-        else:
-            branch = "└─ " if is_last else "├─ "
-            lines.append(prefix + branch + line)
-            child_prefix = prefix + ("   " if is_last else "│  ")
-
-        children = self._ast_children(node)
-        for index, (child_field, child_node) in enumerate(children):
-            child_is_last = index == len(children) - 1
-            if isinstance(child_node, list):
-                branch = "└─ " if child_is_last else "├─ "
-                grouped_nodes = ", ".join(
-                    self._format_grouped_node(value, context)
-                    for value in child_node
-                )
-                lines.append(
-                    f"{child_prefix}{branch}{child_field}: {grouped_nodes}"
-                )
-                continue
-
-            self._append_ast_lines(
-                child_node,
-                child_field,
-                child_prefix,
-                context,
-                lines,
-                is_last=child_is_last,
-                allow_call_summary=(
-                    allow_call_summary and not isinstance(node, ast.Call)
-                ),
-            )
-
-    def _ast_children(self, node):
-        children = []
-        for field_name, value in ast.iter_fields(node):
-            if (
-                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and field_name == "body"
-            ):
-                continue
-            if isinstance(value, ast.expr_context):
-                continue
-            if isinstance(value, ast.AST):
-                children.append((field_name, value))
-                continue
-            if not isinstance(value, list):
-                continue
-
-            nodes = [
-                child
-                for child in value
-                if isinstance(child, ast.AST)
-                and not isinstance(child, ast.expr_context)
-            ]
-            if not nodes:
-                continue
-            if len(nodes) == 1:
-                children.append((
-                    self._list_field_name(field_name, 0, 1),
-                    nodes[0],
-                ))
-            elif all(self._is_ast_leaf(child) for child in nodes):
-                children.append((field_name, nodes))
-            else:
-                children.extend(
-                    (
-                        self._list_field_name(field_name, index, len(nodes)),
-                        child,
-                    )
-                    for index, child in enumerate(nodes)
-                )
-        return children
-
-    @staticmethod
-    def _is_ast_leaf(node):
-        for _, value in ast.iter_fields(node):
-            if isinstance(value, ast.expr_context):
-                continue
-            if isinstance(value, ast.AST):
-                return False
-            if isinstance(value, list) and any(
-                isinstance(child, ast.AST)
-                and not isinstance(child, ast.expr_context)
-                for child in value
-            ):
-                return False
-        return True
-
-    @staticmethod
-    def _list_field_name(field_name, index, count):
-        if field_name == "targets":
-            return "target" if count == 1 else f"target[{index}]"
-        if field_name == "args":
-            return "args" if count == 1 else f"arg[{index}]"
-        if field_name == "keywords":
-            return "keyword" if count == 1 else f"keyword[{index}]"
-        if field_name == "body":
-            return f"statement[{index}]"
-        return f"{field_name}[{index}]"
-
-    def _format_ast_node(self, node, field_name, context, allow_call_summary):
-        description = self._node_display(node, context)
-        if field_name:
-            description = f"{field_name}: {description}"
-
-        annotation = self._node_annotation(node, allow_call_summary)
-        if annotation:
-            description += f" ← {annotation}"
-        return description
-
-    def _format_grouped_node(self, node, context):
-        return self._node_display(node, context)
-
     def _node_display(self, node, context):
         if isinstance(node, ast.Name):
             return f"Name({node.id}, {type(node.ctx).__name__})"
@@ -559,7 +1086,16 @@ class SourceDetailPlugin(FuncDocsPlugin):
     def _show_ast_placeholder(self, message):
         if self.ast_view is None:
             return
-        self.ast_view.setPlainText(message)
+        self.ast_view.clear()
+        self._ast_nodes = {}
+        self._ast_items = {}
+        self._selected_ast_node = None
+        QTreeWidgetItem(self.ast_view, [message])
+        if self.ast_source_view is not None:
+            self.ast_source_view.clear()
+            self.ast_source_view.setPlaceholderText(message)
+        if self.add_candidate_button is not None:
+            self.add_candidate_button.setEnabled(False)
 
 
 def create_plugin():

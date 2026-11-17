@@ -237,6 +237,10 @@ class RelationshipDiagramView(QGraphicsView):
             "R6", "함수·정적 요소", "일반 함수 및 정적 요소",
             QColor(CATEGORY_COLORS["R6"]),
         ),
+        (
+            "Rn", "조건 후보", "사용자가 추가한 AST 조건 후보",
+            QColor(CATEGORY_COLORS["Rn"]),
+        ),
     )
 
     def __init__(self, parent=None):
@@ -343,7 +347,10 @@ class RelationshipDiagramView(QGraphicsView):
         card.setZValue(-1)
         return height
 
-    def show_function(self, function_name, class_name, refactor_set):
+    def show_function(
+        self, function_name, class_name, refactor_set,
+        condition_candidate_labels=(),
+    ):
         scene = self.scene()
         scene.clear()
         self._diagram_items = {}
@@ -386,16 +393,20 @@ class RelationshipDiagramView(QGraphicsView):
         gap_y = 24
         start_x = center_x - (card_width * 3 + gap_x * 2) / 2
         first_y = root_y + root_height + 54
-        row_heights = [0, 0]
+        row_count = (len(self.CATEGORY_INFO) + 2) // 3
+        row_heights = [0] * row_count
         cards = []
         for index, (key, label, description, color) in enumerate(self.CATEGORY_INFO):
             row, column = divmod(index, 3)
             x = start_x + column * (card_width + gap_x)
-            y = first_y + (row_heights[0] + gap_y if row else 0)
-            values = list(dict.fromkeys(
-                item[1] for item in read_set.get(key, [])
-                if item[1] != "self"
-            ))
+            y = first_y + sum(row_heights[:row]) + gap_y * row
+            if key == "Rn":
+                values = list(condition_candidate_labels)
+            else:
+                values = list(dict.fromkeys(
+                    item[1] for item in read_set.get(key, [])
+                    if item[1] != "self"
+                ))
             card_height = self._add_card(
                 x, y, card_width, key,
                 f"{key} · {label}  —  {description}",
@@ -425,7 +436,10 @@ class RelationshipDiagramView(QGraphicsView):
                 ])
                 scene.addPolygon(arrow, QPen(color), QBrush(color)).setZValue(-1)
 
-        total_height = first_y + sum(row_heights) + gap_y + 24
+        total_height = (
+            first_y + sum(row_heights)
+            + gap_y * max(0, row_count - 1) + 24
+        )
         scene.setSceneRect(0, 0, center_x * 2, total_height)
         self._has_diagram = True
         self.fit_diagram()
@@ -573,6 +587,14 @@ class FuncDocsWindow(QMainWindow):
                         plugin,
                         "set_diagram_item_callback",
                         self.on_diagram_item_clicked,
+                    )
+                if callable(getattr(
+                    plugin, "set_condition_candidates_callback", None
+                )):
+                    self._invoke_plugin(
+                        plugin,
+                        "set_condition_candidates_callback",
+                        self.on_condition_candidates_changed,
                     )
 
         self.plugin_area.setMinimumWidth(360)
@@ -871,18 +893,24 @@ class FuncDocsWindow(QMainWindow):
                     getattr(plugin, "on_diagram_item_clicked", None)
                 )
             ):
-                succeeded = self._invoke_plugin(
+                self._invoke_plugin(
                     plugin,
                     "on_diagram_item_clicked",
                     context,
                     category,
                     value,
                 )
-                if succeeded:
-                    widget = self.plugin_widgets[plugin.plugin_id]
-                    tab_index = self.plugin_tabs.indexOf(widget)
-                    if tab_index >= 0:
-                        self.plugin_tabs.setCurrentIndex(tab_index)
+
+    def on_condition_candidates_changed(self, candidate_labels):
+        context = self._last_context
+        if context is None:
+            return
+        self.diagram_view.show_function(
+            context.function_name,
+            context.class_name,
+            context.refactor_set,
+            candidate_labels,
+        )
 
     def open_settings(self):
         dialog = FuncDocsSettingsDialog(
