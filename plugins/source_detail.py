@@ -41,8 +41,19 @@ def _ast_feature(node):
         return None
 
     fields = []
+    excluded_statement_fields = {
+        "body",
+        "orelse",
+        "finalbody",
+        "handlers",
+        "cases",
+        "decorator_list",
+        "type_params",
+    }
     for field_name, value in ast.iter_fields(node):
         if isinstance(value, ast.expr_context):
+            continue
+        if field_name in excluded_statement_fields:
             continue
         if isinstance(value, ast.AST):
             child = _ast_feature(value)
@@ -128,10 +139,7 @@ class ConditionCandidateDialog(QDialog):
         )
         self.expression_view.setMaximumHeight(100)
         if expression is None:
-            expression = " AND ".join(
-                f"C{index}"
-                for index in range(1, len(self._conditions) + 1)
-            )
+            expression = "C1"
         self.expression_view.setPlainText(expression)
         layout.addWidget(self.expression_view)
         syntax_note = QLabel(
@@ -1279,36 +1287,83 @@ class SourceDetailPlugin(FuncDocsPlugin):
 
     def _statement_condition_evidence(self, statement, conditions):
         statement_nodes = self._statement_condition_nodes(statement)
+
         evidence = [
             [
                 node for node in statement_nodes
                 if type(node).__name__ == condition["node_type"]
-                and self._condition_feature(condition)
-                == json.dumps(_ast_feature(node), ensure_ascii=False)
             ]
             for condition in conditions
         ]
+
         return [bool(matches) for matches in evidence], evidence
 
     @staticmethod
     def _condition_feature(condition):
         feature = condition.get("feature")
         if isinstance(feature, str):
-            return feature
+            try:
+                parsed_feature = json.loads(feature)
+                return json.dumps(
+                    SourceDetailPlugin._normalize_ast_feature(parsed_feature),
+                    ensure_ascii=False,
+                )
+            except json.JSONDecodeError:
+                pass
         try:
             parsed = ast.parse(condition["source"])
         except SyntaxError:
-            return None
-        source_node = next(
-            (
-                node for node in ast.walk(parsed)
-                if type(node).__name__ == condition["node_type"]
-            ),
-            None,
-        )
-        if source_node is None:
-            return None
-        return json.dumps(_ast_feature(source_node), ensure_ascii=False)
+            source_node = None
+        else:
+            source_node = next(
+                (
+                    node for node in ast.walk(parsed)
+                    if type(node).__name__ == condition["node_type"]
+                ),
+                None,
+            )
+        if source_node is not None:
+            return json.dumps(_ast_feature(source_node), ensure_ascii=False)
+        return feature if isinstance(feature, str) else None
+
+    @staticmethod
+    def _normalize_ast_feature(feature):
+        excluded_fields = {
+            "body",
+            "orelse",
+            "finalbody",
+            "handlers",
+            "cases",
+            "decorator_list",
+            "type_params",
+        }
+        if not isinstance(feature, list):
+            return feature
+        if not feature:
+            return []
+        if not (
+            len(feature) == 2
+            and isinstance(feature[0], str)
+            and isinstance(feature[1], list)
+        ):
+            return [
+                SourceDetailPlugin._normalize_ast_feature(child)
+                for child in feature
+            ]
+        node_type, fields = feature
+        normalized_fields = []
+        if isinstance(fields, list):
+            for field in fields:
+                if not isinstance(field, list) or len(field) != 2:
+                    continue
+                field_name, child = field
+                if field_name in excluded_fields:
+                    continue
+                normalized_fields.append([
+                    field_name,
+                    SourceDetailPlugin._normalize_ast_feature(child),
+                ])
+        return [node_type, normalized_fields]
 
     @staticmethod
     def _statement_condition_nodes(statement):
@@ -1330,11 +1385,7 @@ class SourceDetailPlugin(FuncDocsPlugin):
         conditions = candidate.get("conditions", ())
         if not conditions:
             return "C1"
-        parts = ["C1"]
-        for index, condition in enumerate(conditions[1:], start=2):
-            operator = condition.get("operator", "AND")
-            parts.extend((operator, f"C{index}"))
-        return " ".join(parts)
+        return "C1"
 
     @staticmethod
     def _evaluate_condition_expression(expression, values):
