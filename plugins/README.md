@@ -39,6 +39,16 @@ another tab.
 The **표시 설정** section in **도구 설정** controls long-line wrapping in
 plugins that implement `set_wrap_long_lines`.
 
+The built-in **서비스 기능 단위 분석** plugin summarizes a selected function's
+parameters, return values, branches, reads/writes, mutations, failure paths,
+and calls to other functions defined in the same file. It estimates the main
+work role and suggests an atomic-task, delegation, assembly, or review boundary.
+These are static-analysis candidates; they do not prove business cohesion.
+It also combines `ModuleCodeAnalyzer`, `FuncOrigin`, `FuncInfluenceAnalyzer`,
+and `FuncExport` results to show element structure, origins, side effects, and
+local/external references. Export analysis is cached per directory and refreshed
+when Python files in that directory tree change.
+
 ```python
 from PyQt5.QtWidgets import QLabel
 
